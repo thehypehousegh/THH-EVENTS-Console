@@ -1,0 +1,433 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap');
+
+/* ============================================================
+   Design tokens — three themes (Industry / Corporate / Dark),
+   ported from the Claude Design "Industry" system + Hype House
+   Ops prototype. Switched at runtime via [data-theme] on <html>.
+   ============================================================ */
+
+:root,
+[data-theme="industry"] {
+  --color-bg: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-text: #1d1f20;
+  --color-accent: #5980a6;
+  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
+
+  --color-accent-100: #eef6ff;
+  --color-accent-200: #d6ebff;
+  --color-accent-300: #b5d9fd;
+  --color-accent-400: #94bce3;
+  --color-accent-500: #749dc4;
+  --color-accent-600: #597ea3;
+  --color-accent-700: #416180;
+  --color-accent-800: #2c455d;
+  --color-accent-900: #1d2d3d;
+
+  --color-neutral-100: #f5f5f8;
+  --color-neutral-200: #e7e7ea;
+  --color-neutral-300: #d4d4d7;
+  --color-neutral-400: #b7b7ba;
+  --color-neutral-500: #98989b;
+  --color-neutral-600: #7a7a7d;
+  --color-neutral-700: #5d5d60;
+  --color-neutral-800: #424244;
+  --color-neutral-900: #2b2b2d;
+
+  --font-heading: "Barlow Condensed", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: "Barlow", system-ui, sans-serif;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 7px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
+
+  --hh-paper: #f2f2f3;
+  --hh-paper-20: rgba(242, 242, 243, 0.22);
+  --hh-paper-30: rgba(242, 242, 243, 0.32);
+  --hh-danger: #c0392b;
+  --hh-danger-ink: #ffffff;
+  --hh-danger-glow: rgba(192, 57, 43, 0.15);
+  --hh-danger-tint: #f3d3ce;
+  --hh-danger-tint-ink: #7d2b20;
+  --hh-warn: #c98a2e;
+  --hh-warn-ink: #241a06;
+  --hh-scrim: rgba(29, 31, 32, 0.55);
+}
+
+[data-theme="corporate"] {
+  --color-bg: #f6f7fb;
+  --color-surface: #edf0f7;
+  --color-text: #14182b;
+  --color-accent: #3f63d4;
+  --color-divider: color-mix(in srgb, #14182b 15%, transparent);
+
+  --color-accent-100: #ecf1ff;
+  --color-accent-200: #d3e0ff;
+  --color-accent-300: #adc5fb;
+  --color-accent-400: #82a4f3;
+  --color-accent-500: #5b83e8;
+  --color-accent-600: #3f63d4;
+  --color-accent-700: #2e49a6;
+  --color-accent-800: #213479;
+  --color-accent-900: #16224f;
+
+  --color-neutral-100: #f6f7fb;
+  --color-neutral-200: #e5e8f2;
+  --color-neutral-300: #d8dce8;
+  --color-neutral-400: #b8bed1;
+  --color-neutral-500: #969db4;
+  --color-neutral-600: #767d96;
+  --color-neutral-700: #575e77;
+  --color-neutral-800: #3b4159;
+  --color-neutral-900: #242940;
+
+  --hh-paper: #ffffff;
+  --hh-paper-20: rgba(255, 255, 255, 0.24);
+  --hh-paper-30: rgba(255, 255, 255, 0.36);
+  --hh-danger: #d63b47;
+  --hh-danger-ink: #ffffff;
+  --hh-danger-glow: rgba(214, 59, 71, 0.16);
+  --hh-danger-tint: #fbdadd;
+  --hh-danger-tint-ink: #8c1f28;
+  --hh-warn: #d99413;
+  --hh-warn-ink: #2e1d00;
+  --hh-scrim: rgba(20, 24, 43, 0.52);
+}
+
+[data-theme="dark"] {
+  --color-bg: #14171a;
+  --color-surface: #1d2126;
+  --color-text: #e7e9ec;
+  --color-accent: #6fa2d6;
+  --color-divider: color-mix(in srgb, #e7e9ec 20%, transparent);
+
+  --color-accent-100: #1e2c39;
+  --color-accent-200: #263a4b;
+  --color-accent-300: #2f4a60;
+  --color-accent-400: #3f6484;
+  --color-accent-500: #5f8db3;
+  --color-accent-600: #7fa8c9;
+  --color-accent-700: #a2c5e0;
+  --color-accent-800: #c4dcef;
+  --color-accent-900: #0d1319;
+
+  --color-neutral-100: #1b1f23;
+  --color-neutral-200: #262b30;
+  --color-neutral-300: #333940;
+  --color-neutral-400: #4a525b;
+  --color-neutral-500: #6c757f;
+  --color-neutral-600: #88919a;
+  --color-neutral-700: #a4acb5;
+  --color-neutral-800: #c6ccd3;
+  --color-neutral-900: #0f1215;
+
+  --hh-paper: #e7e9ec;
+  --hh-paper-20: rgba(231, 233, 236, 0.2);
+  --hh-paper-30: rgba(231, 233, 236, 0.3);
+  --hh-danger: #e05c4e;
+  --hh-danger-ink: #1a0d0a;
+  --hh-danger-glow: rgba(224, 92, 78, 0.2);
+  --hh-danger-tint: #3d211d;
+  --hh-danger-tint-ink: #f2b8b0;
+  --hh-warn: #e0a94a;
+  --hh-warn-ink: #241a06;
+  --hh-scrim: rgba(6, 8, 10, 0.66);
+}
+
+@theme inline {
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 6px;
+}
+a {
+  color: var(--color-accent-700);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--color-accent-900);
+  text-decoration: underline;
+}
+img {
+  display: block;
+  max-width: 100%;
+}
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text) 20%, transparent);
+}
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+.text-muted {
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+/* — blueprint frame (wireframe cards, figures, primary button) — */
+.blueprint {
+  position: relative;
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
+  background: transparent;
+}
+.blueprint > .corner {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.blueprint > .corner::before,
+.blueprint > .corner::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+}
+.blueprint > .corner::before {
+  left: 5px;
+  top: 0;
+  width: 1px;
+  height: 100%;
+}
+.blueprint > .corner::after {
+  top: 5px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+}
+.blueprint > .corner.tl {
+  top: -6px;
+  left: -6px;
+}
+.blueprint > .corner.tr {
+  top: -6px;
+  right: -6px;
+}
+.blueprint > .corner.bl {
+  bottom: -6px;
+  left: -6px;
+}
+.blueprint > .corner.br {
+  bottom: -6px;
+  right: -6px;
+}
+
+.duotone {
+  position: relative;
+  overflow: hidden;
+}
+.duotone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--color-accent);
+  mix-blend-mode: color;
+}
+
+/* — buttons — */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  min-height: 40px;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--hh-paper);
+  border-color: var(--color-accent);
+}
+.btn-primary:hover {
+  background: var(--color-accent-600);
+}
+.btn-primary:active {
+  background: var(--color-accent-700);
+}
+.btn-secondary {
+  border-color: var(--color-divider);
+  background: transparent;
+}
+.btn-secondary:hover {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+.btn-ghost {
+  color: var(--color-accent-700);
+  border-color: transparent;
+  background: transparent;
+}
+.btn-ghost:hover {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+/* — forms — */
+.field-label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-accent-700);
+  margin-bottom: 4px;
+}
+.input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+.input:hover {
+  border-color: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+.input:focus-visible {
+  border-color: var(--color-accent);
+  outline-offset: 0;
+}
+textarea.input {
+  min-height: 90px;
+  resize: vertical;
+}
+
+/* — tags / chips — */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+}
+.tag-accent {
+  background: var(--color-accent-100);
+  color: var(--color-accent-800);
+}
+.tag-neutral {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-800);
+}
+.tag-outline {
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent-700);
+}
+
+/* — table — */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: 6px;
+  border-bottom: 1px solid var(--color-divider);
+}
+.table td {
+  padding: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+}
+
+/* — print paper backup — */
+.hh-print {
+  display: none;
+}
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .hh-screen {
+    display: none !important;
+  }
+  .hh-print {
+    display: block !important;
+    padding: 0;
+  }
+  .hh-print table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11pt;
+  }
+  .hh-print th,
+  .hh-print td {
+    border-bottom: 1px solid #999;
+    padding: 7px 6px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .hh-print .box {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid #000;
+    display: inline-block;
+  }
+  @page {
+    margin: 16mm;
+  }
+}
