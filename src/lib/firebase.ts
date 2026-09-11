@@ -2,7 +2,13 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  memoryLocalCache,
+  type Firestore,
+} from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -14,6 +20,8 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+const isBrowser = typeof window !== "undefined";
+
 export const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth: Auth = getAuth(app);
@@ -22,10 +30,15 @@ export const auth: Auth = getAuth(app);
 // "works on a bad signal at a wedding venue" behaviour for free: writes made
 // while offline queue in IndexedDB and flush automatically on reconnect, and
 // `snapshot.metadata.hasPendingWrites` tells the UI what is still in flight.
+//
+// IndexedDB only exists in the browser. Next's static export still prerenders
+// every "use client" page once in Node at build time, so the persistent cache
+// must not be requested there — fall back to a plain in-memory cache for that
+// pass (it's never actually queried outside the browser anyway).
 export const db: Firestore = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
+  localCache: isBrowser
+    ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    : memoryLocalCache(),
 });
 
 export const storage: FirebaseStorage = getStorage(app);
