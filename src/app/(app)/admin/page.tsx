@@ -7,7 +7,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, getSecondaryAuth, storage } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthProvider";
 import { useAppData } from "@/lib/AppDataProvider";
-import { useCollection, genId } from "@/lib/hooks";
+import { useCollection, genId, genToken } from "@/lib/hooks";
 import { Blueprint, Btn, Chip, Divider, FieldLabel, Input, Toast } from "@/components/ui";
 import { PERMS, PRESETS, type PermissionId, type HHEvent } from "@/lib/types";
 
@@ -50,6 +50,7 @@ export default function AdminPage() {
       <RolesPanel flash={flash} />
       <PeoplePanel flash={flash} />
       <EventBuilderPanel flash={flash} />
+      <ClientLinkPanel flash={flash} />
       <Toast text={toast} />
     </div>
   );
@@ -520,5 +521,53 @@ function EventBuilderPanel({ flash }: { flash: (m: string) => void }) {
         </div>
       </Blueprint>
     </div>
+  );
+}
+
+function ClientLinkPanel({ flash }: { flash: (m: string) => void }) {
+  const { data: events } = useCollection<HHEvent>("events", orderBy("createdAt", "desc"));
+  const [eventId, setEventId] = useState<string | null>(null);
+  const activeEventId = eventId || events[0]?.id || null;
+  const active = events.find((e) => e.id === activeEventId);
+  const [copied, setCopied] = useState(false);
+
+  if (!active) return null;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const link = `${origin}/client/?e=${active.id}&t=${active.clientToken}`;
+
+  async function rotate() {
+    if (!active) return;
+    await updateDoc(doc(db, "events", active.id), { clientToken: genToken(), clientTokenActive: true });
+    flash("Old link revoked — a fresh one has been issued, send it to the client");
+  }
+
+  return (
+    <Blueprint style={{ gridColumn: "1/-1" }}>
+      <h4 style={{ margin: "0 0 10px" }}>Client link</h4>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        {events.map((ev) => (
+          <Chip key={ev.id} active={activeEventId === ev.id} onClick={() => setEventId(ev.id)}>{ev.name}</Chip>
+        ))}
+      </div>
+      <div style={{ padding: "13px 15px", background: "var(--color-accent-100)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+        <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+          <span style={{ fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>
+            Shareable client link · no sign-in, read only
+          </span>
+          <span style={{ fontFamily: "ui-monospace,Menlo,monospace", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{link}</span>
+        </span>
+        <Btn
+          variant="primary"
+          onClick={() => {
+            navigator.clipboard?.writeText(link);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+          }}
+        >
+          {copied ? "✓ Link copied" : "Copy link"}
+        </Btn>
+        <Btn onClick={rotate}>Revoke &amp; reissue</Btn>
+      </div>
+    </Blueprint>
   );
 }
