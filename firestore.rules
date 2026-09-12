@@ -74,7 +74,12 @@ service cloud.firestore {
       allow get: if resource.data.status == "approved"
                   || isPlatformAdmin()
                   || sameOrg(orgId);
-      allow list: if isPlatformAdmin();
+      // list is evaluated per matched document: a platform admin's review
+      // queue can enumerate everything, but a public/org-scoped slug
+      // lookup (org landing pages resolve by querying on `slug`) only
+      // ever sees approved orgs, plus a member's own org whatever its
+      // status (e.g. while suspended).
+      allow list: if isPlatformAdmin() || resource.data.status == "approved" || sameOrg(orgId);
       // Public self-service registration: anyone may file a pending
       // application. It must land as "pending" and never self-declare
       // platform ownership.
@@ -102,11 +107,14 @@ service cloud.firestore {
     }
 
     // ── People ──────────────────────────────────────────────────────
+    // Reads are open to any active member of the same org — every role's
+    // UI resolves names (controller, deputy, "entered by …") off this
+    // collection, not just accounts-perm holders. Writes stay admin-only.
     match /people/{personId} {
       allow get: if isPlatformAdmin()
                   || isSelf(personId)
-                  || (hasPerm('accounts') && resource.data.orgId == myOrgId());
-      allow list: if isPlatformAdmin() || (hasPerm('accounts') && resource.data.orgId == myOrgId());
+                  || (isActivePerson() && resource.data.orgId == myOrgId());
+      allow list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId());
       // Created by the secondary-auth admin flow right after the Firebase
       // Auth account is made; only someone with `accounts` may do it, for
       // their own org, or the platform admin (seeding a new org's admin).
