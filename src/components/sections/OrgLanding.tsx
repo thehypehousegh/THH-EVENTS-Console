@@ -44,10 +44,44 @@ export default function OrgLanding() {
   return <OrgLandingBody />;
 }
 
+type LandingTheme = "corporate" | "industry" | "dark";
+const LANDING_THEMES: { id: LandingTheme; label: string }[] = [
+  { id: "corporate", label: "Corporate" },
+  { id: "industry", label: "Industry" },
+  { id: "dark", label: "Dark" },
+];
+const LANDING_THEME_KEY = "hh-landing-theme";
+
+function useLandingTheme() {
+  const [theme, setThemeState] = useState<LandingTheme>("corporate");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LANDING_THEME_KEY) as LandingTheme | null;
+      if (saved && LANDING_THEMES.some((t) => t.id === saved)) setThemeState(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function setTheme(t: LandingTheme) {
+    setThemeState(t);
+    try {
+      localStorage.setItem(LANDING_THEME_KEY, t);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return { theme, setTheme };
+}
+
 function OrgLandingBody() {
   const { org, slug } = useOrg();
+  const { theme, setTheme } = useLandingTheme();
   if (!org) return null;
   const sinceYear = new Date(org.createdAt).getFullYear();
+  const industry = theme === "industry";
 
   const nav = [
     { label: "Admin", href: `/${slug}/admin/` },
@@ -55,8 +89,14 @@ function OrgLandingBody() {
     { label: "Events", href: `/${slug}/events/` },
   ];
 
+  const presenceStats = [
+    org.location ? { value: org.location, label: "Based in" } : null,
+    { value: String(sinceYear), label: "Coordinating since" },
+    { value: "Live", label: "Run sheet & checklists" },
+  ].filter((s): s is { value: string; label: string } => s !== null);
+
   return (
-    <div style={{ minWidth: 0 }}>
+    <div data-landing-theme={theme} style={{ minWidth: 0 }}>
       {/* ── Nav ─────────────────────────────────────────────── */}
       <header
         style={{
@@ -126,27 +166,45 @@ function OrgLandingBody() {
           position: "relative",
           overflow: "hidden",
           padding: "clamp(56px,11vw,120px) clamp(16px,4vw,40px) clamp(48px,8vw,88px)",
-          background:
-            "radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent 55%), radial-gradient(circle at 82% 0%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 50%), var(--color-bg)",
+          background: industry
+            ? "var(--color-bg)"
+            : "radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent 55%), radial-gradient(circle at 82% 0%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 50%), var(--color-bg)",
         }}
       >
         <div style={{ maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
-          <span
-            style={{
-              display: "inline-block",
-              fontFamily: "var(--font-heading)",
-              fontSize: 11,
-              letterSpacing: ".24em",
-              textTransform: "uppercase",
-              color: "var(--color-accent-700)",
-              padding: "6px 14px",
-              border: "1px solid var(--color-accent-300)",
-              borderRadius: 999,
-              marginBottom: 20,
-            }}
-          >
-            Event coordination, run live
-          </span>
+          {industry ? (
+            <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", marginBottom: 22 }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-heading)",
+                  fontSize: 12,
+                  letterSpacing: ".2em",
+                  textTransform: "uppercase",
+                  color: "var(--color-accent-700)",
+                }}
+              >
+                Event coordination, run live
+              </span>
+              <span style={{ width: 40, height: 3, background: "var(--color-accent)", marginTop: 9 }} />
+            </div>
+          ) : (
+            <span
+              style={{
+                display: "inline-block",
+                fontFamily: "var(--font-heading)",
+                fontSize: 11,
+                letterSpacing: ".24em",
+                textTransform: "uppercase",
+                color: "var(--color-accent-700)",
+                padding: "6px 14px",
+                border: "1px solid var(--color-accent-300)",
+                borderRadius: 999,
+                marginBottom: 20,
+              }}
+            >
+              Event coordination, run live
+            </span>
+          )}
           <h1 style={{ fontSize: "clamp(34px,7vw,64px)", lineHeight: 1.03, margin: "0 0 16px" }}>{org.name}</h1>
           <p style={{ fontSize: "clamp(15px,2.4vw,19px)", color: "color-mix(in srgb, var(--color-text) 68%, transparent)", maxWidth: 620, margin: "0 auto 30px" }}>
             {org.slogan || "Every run sheet, checklist and escalation, coordinated from one live console."}
@@ -174,20 +232,35 @@ function OrgLandingBody() {
       </section>
 
       {/* ── Presence ────────────────────────────────────────── */}
-      <section style={{ padding: "clamp(32px,6vw,56px) clamp(16px,4vw,40px)", background: "var(--color-accent-900)", color: "var(--hh-paper)" }}>
+      <section
+        style={{
+          padding: "clamp(32px,6vw,56px) clamp(16px,4vw,40px)",
+          background: industry ? "var(--color-surface)" : "var(--color-accent-900)",
+          color: industry ? "var(--color-text)" : "var(--hh-paper)",
+        }}
+      >
         <div
           style={{
             maxWidth: 900,
             margin: "0 auto",
             display: "flex",
             justifyContent: "center",
-            gap: "clamp(28px,7vw,72px)",
+            gap: industry ? 0 : "clamp(28px,7vw,72px)",
             flexWrap: "wrap",
           }}
         >
-          {org.location && <PresenceStat value={org.location} label="Based in" />}
-          <PresenceStat value={String(sinceYear)} label="Coordinating since" />
-          <PresenceStat value="Live" label="Run sheet & checklists" />
+          {presenceStats.map((s, i) => (
+            <div
+              key={s.label}
+              style={
+                industry
+                  ? { padding: "0 clamp(20px,5vw,40px)", borderLeft: i > 0 ? "1px solid var(--color-divider)" : "none" }
+                  : undefined
+              }
+            >
+              <PresenceStat value={s.value} label={s.label} onDark={!industry} />
+            </div>
+          ))}
         </div>
       </section>
 
@@ -196,30 +269,48 @@ function OrgLandingBody() {
         <section style={{ padding: "clamp(40px,7vw,72px) clamp(16px,4vw,40px)", background: "var(--color-surface)" }}>
           <div style={{ maxWidth: 1180, margin: "0 auto" }}>
             <Eyebrow center>Our services</Eyebrow>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,250px),1fr))", gap: 16, marginTop: 24 }}>
-              {org.services.map((s, i) => (
-                <Blueprint key={i} style={{ minWidth: 0 }}>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      width: 34,
-                      height: 34,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontFamily: "var(--font-heading)",
-                      fontSize: 15,
-                      background: "var(--color-accent-100)",
-                      color: "var(--color-accent-800)",
-                      marginBottom: 10,
-                    }}
-                  >
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <h4 style={{ margin: "0 0 5px" }}>{s.title}</h4>
-                  <p className="text-muted" style={{ fontSize: 13, margin: "0 0 10px" }}>{s.description}</p>
-                  <a href="#contact" style={{ fontFamily: "var(--font-heading)", fontSize: 11.5, letterSpacing: ".05em" }}>Enquire →</a>
-                </Blueprint>
-              ))}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,250px),1fr))",
+                gap: industry ? "28px 32px" : 16,
+                marginTop: 24,
+              }}
+            >
+              {org.services.map((s, i) =>
+                industry ? (
+                  <div key={i} style={{ minWidth: 0, paddingBottom: 16, borderBottom: "1px solid var(--color-divider)" }}>
+                    <span style={{ display: "block", fontFamily: "var(--font-heading)", fontSize: 32, color: "var(--color-accent)", marginBottom: 10 }}>
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <h4 style={{ margin: "0 0 5px" }}>{s.title}</h4>
+                    <p className="text-muted" style={{ fontSize: 13, margin: "0 0 10px" }}>{s.description}</p>
+                    <a href="#contact" style={{ fontFamily: "var(--font-heading)", fontSize: 11.5, letterSpacing: ".05em" }}>Enquire →</a>
+                  </div>
+                ) : (
+                  <Blueprint key={i} style={{ minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        width: 34,
+                        height: 34,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontFamily: "var(--font-heading)",
+                        fontSize: 15,
+                        background: "var(--color-accent-100)",
+                        color: "var(--color-accent-800)",
+                        marginBottom: 10,
+                      }}
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <h4 style={{ margin: "0 0 5px" }}>{s.title}</h4>
+                    <p className="text-muted" style={{ fontSize: 13, margin: "0 0 10px" }}>{s.description}</p>
+                    <a href="#contact" style={{ fontFamily: "var(--font-heading)", fontSize: 11.5, letterSpacing: ".05em" }}>Enquire →</a>
+                  </Blueprint>
+                )
+              )}
             </div>
           </div>
         </section>
@@ -231,13 +322,21 @@ function OrgLandingBody() {
           <div style={{ maxWidth: 1180, margin: "0 auto" }}>
             <Eyebrow center>What clients say</Eyebrow>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 16, marginTop: 24 }}>
-              {org.testimonials.map((t, i) => (
-                <div key={i} style={{ padding: 22, background: "var(--color-accent-900)", color: "var(--hh-paper)" }}>
-                  <p style={{ fontSize: 15, lineHeight: 1.55, margin: "0 0 16px" }}>&ldquo;{t.quote}&rdquo;</p>
-                  <div style={{ fontFamily: "var(--font-heading)", fontSize: 14 }}>{t.name}</div>
-                  <div style={{ fontSize: 11.5, opacity: 0.65 }}>{t.role}</div>
-                </div>
-              ))}
+              {org.testimonials.map((t, i) =>
+                industry ? (
+                  <div key={i} style={{ padding: "2px 0 2px 18px", borderLeft: "3px solid var(--color-accent)" }}>
+                    <p style={{ fontSize: 16, lineHeight: 1.55, margin: "0 0 14px", fontStyle: "italic" }}>&ldquo;{t.quote}&rdquo;</p>
+                    <div style={{ fontFamily: "var(--font-heading)", fontSize: 14 }}>{t.name}</div>
+                    <div className="text-muted" style={{ fontSize: 11.5 }}>{t.role}</div>
+                  </div>
+                ) : (
+                  <div key={i} style={{ padding: 22, background: "var(--color-accent-900)", color: "var(--hh-paper)" }}>
+                    <p style={{ fontSize: 15, lineHeight: 1.55, margin: "0 0 16px" }}>&ldquo;{t.quote}&rdquo;</p>
+                    <div style={{ fontFamily: "var(--font-heading)", fontSize: 14 }}>{t.name}</div>
+                    <div style={{ fontSize: 11.5, opacity: 0.65 }}>{t.role}</div>
+                  </div>
+                )
+              )}
             </div>
           </div>
         </section>
@@ -249,6 +348,21 @@ function OrgLandingBody() {
           <div style={{ maxWidth: 1180, margin: "0 auto" }}>
             <Eyebrow center>Executed events</Eyebrow>
             <GallerySlideshow images={org.gallery} />
+          </div>
+        </section>
+      )}
+
+      {/* ── CTA banner (Industry theme only) ────────────────── */}
+      {industry && (
+        <section style={{ padding: "clamp(40px,7vw,72px) clamp(16px,4vw,40px)", background: "var(--color-accent-900)", color: "var(--hh-paper)", textAlign: "center" }}>
+          <div style={{ maxWidth: 640, margin: "0 auto" }}>
+            <h2 style={{ fontSize: "clamp(24px,4vw,36px)", margin: "0 0 12px" }}>Ready to run your next event without the chaos?</h2>
+            <p style={{ opacity: 0.75, margin: "0 0 22px", fontSize: 14.5 }}>
+              Talk to {org.name} about your date, guest count and the moments that matter — a coordinator takes it from there.
+            </p>
+            <a href="#contact" className="btn btn-primary" style={{ minHeight: 48, fontSize: 15, padding: "0 26px", display: "inline-flex" }}>
+              Start the conversation
+            </a>
           </div>
         </section>
       )}
@@ -315,8 +429,23 @@ function OrgLandingBody() {
             </FooterCol>
           )}
         </div>
-        <div style={{ maxWidth: 1180, margin: "30px auto 0", paddingTop: 16, borderTop: "1px solid var(--hh-paper-20)", fontSize: 11, opacity: 0.5 }}>
-          © {new Date().getFullYear()} {org.name}. Run on the THH Events Console.
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: "30px auto 0",
+            paddingTop: 16,
+            borderTop: "1px solid var(--hh-paper-20)",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 14,
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <span style={{ fontSize: 11, opacity: 0.5 }}>
+            © {new Date().getFullYear()} {org.name}. Run on the THH Events Console.
+          </span>
+          <ThemePicker theme={theme} setTheme={setTheme} />
         </div>
       </footer>
 
@@ -330,11 +459,52 @@ function OrgLandingBody() {
   );
 }
 
-function PresenceStat({ value, label }: { value: string; label: string }) {
+function PresenceStat({ value, label, onDark = true }: { value: string; label: string; onDark?: boolean }) {
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 10, letterSpacing: ".14em", textTransform: "uppercase", marginTop: 6, opacity: 0.6 }}>{label}</div>
+      <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, lineHeight: 1, color: onDark ? undefined : "var(--color-text)" }}>{value}</div>
+      <div
+        style={{
+          fontSize: 10,
+          letterSpacing: ".14em",
+          textTransform: "uppercase",
+          marginTop: 6,
+          opacity: onDark ? 0.6 : 0.7,
+          color: onDark ? undefined : "var(--color-accent-700)",
+        }}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function ThemePicker({ theme, setTheme }: { theme: LandingTheme; setTheme: (t: LandingTheme) => void }) {
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <span style={{ fontSize: 10, letterSpacing: ".14em", textTransform: "uppercase", opacity: 0.5 }}>Theme</span>
+      {LANDING_THEMES.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          onClick={() => setTheme(t.id)}
+          aria-pressed={theme === t.id}
+          style={{
+            fontFamily: "var(--font-heading)",
+            fontSize: 11,
+            letterSpacing: ".04em",
+            padding: "5px 12px",
+            border: "1px solid var(--hh-paper-30)",
+            borderRadius: 999,
+            cursor: "pointer",
+            background: theme === t.id ? "var(--hh-paper)" : "transparent",
+            color: theme === t.id ? "var(--color-accent-900)" : "var(--hh-paper)",
+            opacity: theme === t.id ? 1 : 0.75,
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
     </div>
   );
 }

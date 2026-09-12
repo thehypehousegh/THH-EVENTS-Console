@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&family=Sora:wght@600;700;800&display=swap');
 @import "tailwindcss";
 
 /* ============================================================
@@ -138,6 +138,117 @@
   --hh-warn: #e0a94a;
   --hh-warn-ink: #241a06;
   --hh-scrim: rgba(6, 8, 10, 0.66);
+}
+
+/* ============================================================
+   Org landing page themes — separate from the [data-theme]
+   system above (which drives the signed-in staff dashboard via
+   ThemeProvider/TopBar). Public visitors pick one from a footer
+   switcher on the org's own page; scoped to [data-landing-theme]
+   on that page's own wrapper so it never touches dashboard chrome
+   or a staff member's own theme preference. See OrgLanding.tsx.
+   ============================================================ */
+
+/* Corporate — the org landing page's original look, frozen as an
+   explicit option so later edits to the dashboard's own "industry"
+   tokens above never drift it. */
+[data-landing-theme="corporate"] {
+  --color-bg: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-text: #1d1f20;
+  --color-accent: #5980a6;
+  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
+
+  --color-accent-100: #eef6ff;
+  --color-accent-200: #d6ebff;
+  --color-accent-300: #b5d9fd;
+  --color-accent-400: #94bce3;
+  --color-accent-500: #749dc4;
+  --color-accent-600: #597ea3;
+  --color-accent-700: #416180;
+  --color-accent-800: #2c455d;
+  --color-accent-900: #1d2d3d;
+
+  --color-neutral-200: #e7e7ea;
+  --color-neutral-400: #b7b7ba;
+
+  --font-heading: "Barlow Condensed", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: "Barlow", system-ui, sans-serif;
+
+  --hh-paper: #f2f2f3;
+  --hh-paper-20: rgba(242, 242, 243, 0.22);
+  --hh-paper-30: rgba(242, 242, 243, 0.32);
+  --hh-danger-tint: #f3d3ce;
+  --hh-danger-tint-ink: #7d2b20;
+}
+
+/* Industry — editorial, borderless, ZS.com-style consulting-site
+   look: warm paper background, near-black ink, a single confident
+   accent used sparingly, generous whitespace over dense cards. */
+[data-landing-theme="industry"] {
+  --color-bg: #faf9f6;
+  --color-surface: #f1efe8;
+  --color-text: #16181a;
+  --color-accent: #b33a2e;
+  --color-divider: color-mix(in srgb, #16181a 13%, transparent);
+
+  --color-accent-100: #f7e7e1;
+  --color-accent-200: #eecbc0;
+  --color-accent-300: #e0a696;
+  --color-accent-400: #cc7c68;
+  --color-accent-500: #bd5b46;
+  --color-accent-600: #b33a2e;
+  --color-accent-700: #8f2e25;
+  --color-accent-800: #6b241c;
+  --color-accent-900: #201412;
+
+  --color-neutral-200: #ece9e1;
+  --color-neutral-400: #b9b2a4;
+
+  --font-heading: "Barlow", system-ui, sans-serif;
+  --font-heading-weight: 700;
+  --font-body: "Barlow", system-ui, sans-serif;
+
+  --hh-paper: #ffffff;
+  --hh-paper-20: rgba(255, 255, 255, 0.2);
+  --hh-paper-30: rgba(255, 255, 255, 0.3);
+  --hh-danger-tint: #fbdadd;
+  --hh-danger-tint-ink: #8c1f28;
+}
+
+/* Dark — dark background with bright, high-contrast label colors
+   (a cyan primary for eyebrows/links, an amber secondary for the
+   small numbered badges) and a bolder geometric display font. */
+[data-landing-theme="dark"] {
+  --color-bg: #0b0d10;
+  --color-surface: #15181c;
+  --color-text: #eef1f4;
+  --color-accent: #4de8ff;
+  --color-divider: color-mix(in srgb, #eef1f4 18%, transparent);
+
+  --color-accent-100: #12242a;
+  --color-accent-200: #173038;
+  --color-accent-300: #204653;
+  --color-accent-400: #2d6577;
+  --color-accent-500: #3f8ea3;
+  --color-accent-600: #63c3da;
+  --color-accent-700: #4de8ff;
+  --color-accent-800: #ffcf4d;
+  --color-accent-900: #05070a;
+
+  --color-neutral-200: #1c2025;
+  --color-neutral-400: #4b525a;
+
+  --font-heading: "Sora", system-ui, sans-serif;
+  --font-heading-weight: 700;
+  --font-body: "Barlow", system-ui, sans-serif;
+
+  --hh-paper: #eef1f4;
+  --hh-paper-20: rgba(238, 241, 244, 0.18);
+  --hh-paper-30: rgba(238, 241, 244, 0.28);
+  --hh-danger-tint: #3d211d;
+  --hh-danger-tint-ink: #f2b8b0;
 }
 
 @theme inline {
