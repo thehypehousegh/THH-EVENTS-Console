@@ -2,17 +2,19 @@
 
 import { useState } from "react";
 import { orderBy } from "firebase/firestore";
-import { useCollection } from "@/lib/hooks";
+import { useCollection, useOrgCollection } from "@/lib/hooks";
 import { useAuth } from "@/lib/AuthProvider";
+import { useOrg } from "@/lib/OrgProvider";
 import { Blueprint, Chip } from "@/components/ui";
 import type { HHEvent, FeedMessage, ScheduleItem, ChecklistTask, ChangeRequest, Vendor } from "@/lib/types";
 
 const TABS = ["Comms log", "Run sheet as executed", "Checklist by area", "Schedule changes", "Vendors used"] as const;
 type Tab = typeof TABS[number];
 
-export default function ArchivePage() {
+export default function ArchiveSection() {
+  const { org } = useOrg();
   const { hasPerm } = useAuth();
-  const { data: events, loading } = useCollection<HHEvent>("events", orderBy("createdAt", "desc"));
+  const { data: events, loading } = useOrgCollection<HHEvent>("events", org?.id, orderBy("createdAt", "desc"));
   const [openId, setOpenId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("Comms log");
   const activeId = openId || events[0]?.id || null;
@@ -70,11 +72,12 @@ export default function ArchivePage() {
 }
 
 function ArchiveTable({ eventId, tab }: { eventId: string; tab: Tab }) {
+  const { org } = useOrg();
   const { data: feed } = useCollection<FeedMessage>(`events/${eventId}/feed`, orderBy("createdAt", "desc"));
   const { data: schedule } = useCollection<ScheduleItem>(`events/${eventId}/scheduleItems`, orderBy("order"));
   const { data: tasks } = useCollection<ChecklistTask>(`events/${eventId}/tasks`);
   const { data: changes } = useCollection<ChangeRequest>(`events/${eventId}/changes`);
-  const { data: vendors } = useCollection<Vendor>("vendors");
+  const { data: vendors } = useOrgCollection<Vendor>("vendors", org?.id);
 
   let rows: { a: string; b: string; c: string }[] = [];
   let cols = ["A", "B", "C"];

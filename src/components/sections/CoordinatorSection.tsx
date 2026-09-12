@@ -5,11 +5,12 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { EventDataProvider, useEventData } from "@/lib/EventDataProvider";
 import { useAuth } from "@/lib/AuthProvider";
+import { useOrg } from "@/lib/OrgProvider";
 import { Blueprint, Btn, Chip, Divider, Input, Toast } from "@/components/ui";
 import { ScheduleRow } from "@/components/ScheduleRow";
 import { SEVERITIES, type Density, type Severity } from "@/lib/types";
 
-export default function CoordinatorPage() {
+export default function CoordinatorSection() {
   return (
     <Suspense fallback={null}>
       <CoordinatorInner />
@@ -18,12 +19,13 @@ export default function CoordinatorPage() {
 }
 
 function CoordinatorInner() {
+  const { slug } = useOrg();
   const eventId = useSearchParams().get("event");
   if (!eventId) {
     return (
       <div style={{ maxWidth: 600, margin: "60px auto", padding: 20 }}>
         <p className="text-muted">Pick an event from the events list first.</p>
-        <Link href="/events/" className="btn btn-primary" style={{ marginTop: 10 }}>Go to events</Link>
+        <Link href={`/${slug}/events/`} className="btn btn-primary" style={{ marginTop: 10 }}>Go to events</Link>
       </div>
     );
   }

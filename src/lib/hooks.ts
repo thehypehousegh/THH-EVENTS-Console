@@ -6,6 +6,7 @@ import {
   query,
   onSnapshot,
   doc,
+  where,
   type QueryConstraint,
   type DocumentData,
 } from "firebase/firestore";
@@ -27,6 +28,38 @@ export function useCollection<T extends DocumentData>(path: string, ...constrain
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, key]);
+
+  return { data, loading };
+}
+
+/** Same as useCollection, but scoped to one organization via an `orgId`
+ *  equality filter — the multi-tenant flavor for top-level collections
+ *  (people/roles/vendors/events) that are shared across all orgs. Returns
+ *  empty/not-loading while orgId is not yet known. */
+export function useOrgCollection<T extends DocumentData>(
+  path: string,
+  orgId: string | null | undefined,
+  ...constraints: QueryConstraint[]
+) {
+  const [data, setData] = useState<(T & { id: string })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const key = JSON.stringify(constraints.map((c) => c.type));
+
+  useEffect(() => {
+    if (!orgId) {
+      setData([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const q = query(collection(db, path), where("orgId", "==", orgId), ...constraints);
+    const unsub = onSnapshot(q, (snap) => {
+      setData(snap.docs.map((d) => ({ id: d.id, ...(d.data() as T) })));
+      setLoading(false);
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path, orgId, key]);
 
   return { data, loading };
 }

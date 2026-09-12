@@ -6,7 +6,8 @@ import { doc, setDoc, updateDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthProvider";
 import { useAppData } from "@/lib/AppDataProvider";
-import { useCollection, genId } from "@/lib/hooks";
+import { useOrg } from "@/lib/OrgProvider";
+import { useOrgCollection, genId } from "@/lib/hooks";
 import { Blueprint, Btn, Chip, FieldLabel, Input, Toast } from "@/components/ui";
 import type { HHEvent, Vendor } from "@/lib/types";
 
@@ -21,7 +22,7 @@ function useFlash() {
   return { toast, flash };
 }
 
-export default function VendorsPage() {
+export default function VendorsSection() {
   return (
     <Suspense fallback={null}>
       <VendorsInner />
@@ -30,11 +31,12 @@ export default function VendorsPage() {
 }
 
 function VendorsInner() {
+  const { org } = useOrg();
   const eventId = useSearchParams().get("event");
   const { person, role, hasPerm } = useAuth();
   const { roles } = useAppData();
-  const { data: events } = useCollection<HHEvent>("events", orderBy("createdAt", "desc"));
-  const { data: vendors } = useCollection<Vendor>("vendors", orderBy("createdAt", "desc"));
+  const { data: events } = useOrgCollection<HHEvent>("events", org?.id, orderBy("createdAt", "desc"));
+  const { data: vendors } = useOrgCollection<Vendor>("vendors", org?.id, orderBy("createdAt", "desc"));
   const { toast, flash } = useFlash();
 
   const isAll = hasPerm("vendorAll");
@@ -53,9 +55,11 @@ function VendorsInner() {
   const activeEvent = events.find((e) => e.id === eventId) || null;
 
   async function addVendor() {
+    if (!org) return;
     if (!name.trim() || !contact.trim()) return flash("A vendor needs at least a name and a phone number");
     if (!hasPerm("vendorAdd")) return flash("You don't have permission to add vendors");
     await setDoc(doc(db, "vendors", genId("v")), {
+      orgId: org.id,
       name: name.trim(),
       category,
       contact: contact.trim(),

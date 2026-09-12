@@ -4,8 +4,8 @@ import { ThemeProvider } from "@/lib/ThemeProvider";
 import { AuthProvider } from "@/lib/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "The Hype House Ops",
-  description: "The Hype House — Event Coordination Console",
+  title: "THH Events Console",
+  description: "Live event coordination, run sheets and checklists for event houses — built by The Hype House.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

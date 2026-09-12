@@ -1,29 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTheme } from "@/lib/ThemeProvider";
 import { useAuth } from "@/lib/AuthProvider";
 import { useAppData } from "@/lib/AppDataProvider";
-
-const VIEWS = [
-  { id: "/control/", label: "Control room" },
-  { id: "/coordinator/", label: "Coordinator" },
-  { id: "/cue/", label: "MC / DJ" },
-  { id: "/create/", label: "New event" },
-  { id: "/admin/", label: "Admin setup" },
-  { id: "/vendors/", label: "Vendors" },
-  { id: "/archive/", label: "Project record" },
-];
+import { useOrg } from "@/lib/OrgProvider";
 
 export function TopBar() {
   const { theme, setTheme, themes } = useTheme();
   const { person, role, signOutUser } = useAuth();
   const { roleName } = useAppData();
+  const { org, slug } = useOrg();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const eventQS = searchParams.get("event") ? `?event=${searchParams.get("event")}` : "";
+
+  const VIEWS = [
+    { id: `/${slug}/control/`, label: "Control room" },
+    { id: `/${slug}/coordinator/`, label: "Coordinator" },
+    { id: `/${slug}/cue/`, label: "MC / DJ" },
+    { id: `/${slug}/create/`, label: "New event" },
+    { id: `/${slug}/admin/`, label: "Admin setup" },
+    { id: `/${slug}/vendors/`, label: "Vendors" },
+    { id: `/${slug}/archive/`, label: "Project record" },
+  ];
 
   return (
     <div
@@ -40,15 +41,28 @@ export function TopBar() {
         color: "var(--hh-paper)",
       }}
     >
-      <Image
-        src="/hype-house-logo.png"
-        alt="The Hype House"
-        width={34}
-        height={34}
-        style={{ flex: "none", objectFit: "contain", filter: "invert(1)" }}
-      />
+      {org?.logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={org.logoUrl} alt={org.name} width={34} height={34} style={{ flex: "none", objectFit: "contain" }} />
+      ) : (
+        <span
+          style={{
+            flex: "none",
+            width: 34,
+            height: 34,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "var(--font-heading)",
+            fontSize: 15,
+            background: "var(--hh-paper-20)",
+          }}
+        >
+          {(org?.name || "?").slice(0, 1)}
+        </span>
+      )}
       <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
-        <span style={{ fontFamily: "var(--font-heading)", fontSize: 19, letterSpacing: ".03em" }}>THE HYPE HOUSE</span>
+        <span style={{ fontFamily: "var(--font-heading)", fontSize: 19, letterSpacing: ".03em" }}>{(org?.name || "").toUpperCase()}</span>
         <span style={{ fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", opacity: 0.6, marginTop: 4 }}>
           Event Coordination Console
         </span>
@@ -99,7 +113,7 @@ export function TopBar() {
           return (
             <Link
               key={v.id}
-              href={v.id === "/create/" || v.id === "/admin/" ? v.id : `${v.id}${eventQS}`}
+              href={v.id.endsWith("/create/") || v.id.endsWith("/admin/") ? v.id : `${v.id}${eventQS}`}
               style={{
                 fontFamily: "var(--font-heading)",
                 fontSize: 12,

@@ -148,6 +148,9 @@
 * {
   box-sizing: border-box;
 }
+html {
+  scroll-behavior: smooth;
+}
 html,
 body {
   background: var(--color-bg);
@@ -295,6 +298,7 @@ img {
 }
 .btn-primary:hover {
   background: var(--color-accent-600);
+  box-shadow: var(--shadow-sm);
 }
 .btn-primary:active {
   background: var(--color-accent-700);
@@ -305,6 +309,11 @@ img {
 }
 .btn-secondary:hover {
   background: color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+.btn,
+.blueprint,
+.input {
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 .btn-ghost {
   color: var(--color-accent-700);

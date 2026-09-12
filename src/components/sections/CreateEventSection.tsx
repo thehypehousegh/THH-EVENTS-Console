@@ -6,13 +6,15 @@ import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthProvider";
+import { useOrg } from "@/lib/OrgProvider";
 import { Blueprint, Btn, Chip, FieldLabel, Input, Toast } from "@/components/ui";
 import { EVENT_TYPES, type EventType } from "@/lib/types";
 import { genId, genToken } from "@/lib/hooks";
 
 const TYPES = Object.keys(EVENT_TYPES) as EventType[];
 
-export default function CreateEventPage() {
+export default function CreateEventSection() {
+  const { org, slug } = useOrg();
   const { hasPerm, person } = useAuth();
   const router = useRouter();
   const [type, setType] = useState<EventType>("Wedding / Reception");
@@ -38,6 +40,7 @@ export default function CreateEventPage() {
   }
 
   async function createEvent() {
+    if (!org) return;
     if (!name.trim()) {
       setToast("Give the event a name first");
       setTimeout(() => setToast(""), 3000);
@@ -53,6 +56,7 @@ export default function CreateEventPage() {
         coverImageUrl = await getDownloadURL(r);
       }
       await setDoc(doc(db, "events", id), {
+        orgId: org.id,
         name: name.trim(),
         type,
         principal,
@@ -72,7 +76,7 @@ export default function CreateEventPage() {
         createdAt: Date.now(),
         createdBy: person?.id || "",
       });
-      router.push(`/admin/?event=${id}`);
+      router.push(`/${slug}/admin/?event=${id}`);
     } finally {
       setBusy(false);
     }

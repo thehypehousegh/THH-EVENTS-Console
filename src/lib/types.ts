@@ -15,6 +15,7 @@ export type EventStatus = "upcoming" | "ongoing" | "completed";
 
 export interface HHEvent {
   id: string;
+  orgId: string;
   name: string;
   type: EventType;
   principal: Record<string, string>;
@@ -33,6 +34,86 @@ export interface HHEvent {
   deletedAt: number | null;
   createdAt: number;
   createdBy: string;
+}
+
+// ── Multi-tenant platform types ──────────────────────────────────
+// The console is outlet-able: The Hype House is the platform creator and
+// runs its own coordination on it (as one organization, flagged
+// isPlatformOwner), but any event house can register, get approved by a
+// Hype House Super Admin, and get their own branded org space at
+// thh-events-console/{slug}/... Person/RoleDef/Vendor/HHEvent all carry
+// an orgId; platform Super Admins are a separate identity (platformAdmins/
+// {uid}) with no org membership of their own.
+
+export type OrgStatus = "pending" | "approved" | "rejected" | "suspended";
+
+export interface OrgService {
+  title: string;
+  description: string;
+}
+
+export interface OrgTestimonial {
+  name: string;
+  role: string;
+  quote: string;
+}
+
+export interface OrgSocialLinks {
+  facebook: string;
+  instagram: string;
+  tiktok: string;
+  twitter: string;
+}
+
+export interface OrgQuickLink {
+  label: string;
+  url: string;
+}
+
+export interface OrgSubscription {
+  status: "none" | "active" | "expired";
+  durationDays: number | null;
+  startedAt: number | null;
+  expiresAt: number | null;
+}
+
+export interface OrgRequester {
+  name: string;
+  email: string;
+  contact: string;
+  location: string;
+}
+
+export interface Organization {
+  id: string;
+  slug: string;
+  name: string;
+  logoUrl: string | null;
+  slogan: string;
+  location: string;
+  address: string;
+  contactPhone: string;
+  contactEmail: string;
+  about: string;
+  services: OrgService[];
+  testimonials: OrgTestimonial[];
+  gallery: string[];
+  social: OrgSocialLinks;
+  quickLinks: OrgQuickLink[];
+  status: OrgStatus;
+  isPlatformOwner: boolean;
+  subscription: OrgSubscription;
+  requester: OrgRequester;
+  adminEmail: string | null;
+  createdAt: number;
+  approvedAt: number | null;
+}
+
+export interface PlatformAdmin {
+  id: string; // == Firebase Auth uid
+  name: string;
+  email: string;
+  createdAt: number;
 }
 
 export type PermissionId =
@@ -57,6 +138,7 @@ export type PermissionId =
 
 export interface RoleDef {
   id: string;
+  orgId: string;
   name: string;
   base: string;
   perms: PermissionId[];
@@ -64,6 +146,7 @@ export interface RoleDef {
 
 export interface Person {
   id: string; // == Firebase Auth uid
+  orgId: string;
   name: string;
   contact: string;
   email: string;
@@ -162,6 +245,7 @@ export interface RollCallEntry {
 
 export interface Vendor {
   id: string;
+  orgId: string;
   name: string;
   category: string;
   contact: string;

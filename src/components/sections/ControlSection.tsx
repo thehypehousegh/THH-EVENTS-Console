@@ -7,6 +7,7 @@ import { EventDataProvider, useEventData } from "@/lib/EventDataProvider";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthProvider";
 import { useAppData } from "@/lib/AppDataProvider";
+import { useOrg } from "@/lib/OrgProvider";
 import { Blueprint, Btn, Divider, SevPill, Tag, Toast } from "@/components/ui";
 import { PrintBackup } from "@/components/PrintBackup";
 import { ScheduleRow } from "@/components/ScheduleRow";
@@ -19,7 +20,7 @@ const EMERGENCY = [
 
 const AREAS_FALLBACK = ["Ushering", "Catering", "Protocol", "Sound/AV", "Decor", "Logistics"];
 
-export default function ControlPage() {
+export default function ControlSection() {
   return (
     <Suspense fallback={null}>
       <ControlInner />
@@ -28,12 +29,13 @@ export default function ControlPage() {
 }
 
 function ControlInner() {
+  const { slug } = useOrg();
   const eventId = useSearchParams().get("event");
   if (!eventId) {
     return (
       <div style={{ maxWidth: 600, margin: "60px auto", padding: 20 }}>
         <p className="text-muted">Pick an event from the events list first.</p>
-        <Link href="/events/" className="btn btn-primary" style={{ marginTop: 10 }}>Go to events</Link>
+        <Link href={`/${slug}/events/`} className="btn btn-primary" style={{ marginTop: 10 }}>Go to events</Link>
       </div>
     );
   }
