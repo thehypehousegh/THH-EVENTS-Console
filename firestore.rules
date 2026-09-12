@@ -133,17 +133,22 @@ service cloud.firestore {
     }
 
     // ── Roles ───────────────────────────────────────────────────────
+    // A platform admin can see and edit permissions on any org's existing
+    // roles (for the platform dashboard's per-org management view), but
+    // never create one — new roles are seeded once at org approval and
+    // otherwise stay the org admin's own call.
     match /roles/{roleId} {
       allow get, list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId());
       allow create: if isPlatformAdmin() || (hasPerm('accounts') && request.resource.data.orgId == myOrgId());
-      allow update, delete: if hasPerm('accounts') && resource.data.orgId == myOrgId();
+      allow update, delete: if isPlatformAdmin() || (hasPerm('accounts') && resource.data.orgId == myOrgId());
     }
 
     // ── Vendors (top-level; visibility filtered client-side per the
     //    "Main sees all, others see own + shared" rule, but writes are
-    //    gated here) ──────────────────────────────────────────────────
+    //    gated here) — a platform admin can see every org's vendor book
+    //    for the cross-org reporting view. ─────────────────────────────
     match /vendors/{vendorId} {
-      allow get, list: if isActivePerson() && resource.data.orgId == myOrgId();
+      allow get, list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId());
       allow create: if hasPerm('vendorAdd') && request.resource.data.orgId == myOrgId();
       allow update: if isActivePerson() && resource.data.orgId == myOrgId() && (hasPerm('vendorAdd') || hasPerm('vendorShare'));
       allow delete: if hasPerm('accounts') && resource.data.orgId == myOrgId();
@@ -160,10 +165,14 @@ service cloud.firestore {
     }
 
     // ── Events ──────────────────────────────────────────────────────
+    // A platform admin can see every org's events for the cross-org
+    // reporting view (counts by status, sorted by org) — read only, no
+    // platformAdmin branch on writes below.
     match /events/{eventId} {
-      allow get: if resource.data.clientTokenActive == true
+      allow get: if isPlatformAdmin()
+                  || resource.data.clientTokenActive == true
                   || (isActivePerson() && resource.data.orgId == myOrgId());
-      allow list: if isActivePerson() && resource.data.orgId == myOrgId();
+      allow list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId());
       allow create: if (hasPerm('client') || hasPerm('accounts')) && request.resource.data.orgId == myOrgId();
       allow update: if isActivePerson() && resource.data.orgId == myOrgId(); // narrowed per-field below is impractical here; app UI gates actions by perm
       allow delete: if false; // events are archived, never hard-deleted (vendor retention requirement)

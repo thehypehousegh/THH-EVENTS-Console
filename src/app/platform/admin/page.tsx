@@ -8,6 +8,9 @@ import { db, getSecondaryAuth } from "@/lib/firebase";
 import { usePlatformAuth } from "@/lib/PlatformAuthProvider";
 import { useCollection, genId } from "@/lib/hooks";
 import { Blueprint, Btn, Chip, Divider, FieldLabel, Input, Toast } from "@/components/ui";
+import { OrgManagePanel } from "@/components/platform/OrgManagePanel";
+import { EventsReportTab } from "@/components/platform/EventsReportTab";
+import { VendorsReportTab } from "@/components/platform/VendorsReportTab";
 import { PRESETS, type Organization } from "@/lib/types";
 
 function slugify(s: string) {
@@ -28,11 +31,16 @@ function useFlash() {
   return { toast, flash };
 }
 
+const TABS = ["Overview", "Organizations", "Events", "Vendors"] as const;
+type Tab = (typeof TABS)[number];
+
 export default function PlatformAdminPage() {
   const { user, admin, loading, signOutUser } = usePlatformAuth();
   const router = useRouter();
   const { toast, flash } = useFlash();
   const { data: orgs, loading: orgsLoading } = useCollection<Organization>("organizations", orderBy("createdAt", "desc"));
+  const [tab, setTab] = useState<Tab>("Overview");
+  const [managingOrgId, setManagingOrgId] = useState<string | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -61,61 +69,204 @@ export default function PlatformAdminPage() {
   const approved = orgs.filter((o) => o.status === "approved");
   const suspended = orgs.filter((o) => o.status === "suspended");
   const rejected = orgs.filter((o) => o.status === "rejected");
+  const managingOrg = orgs.find((o) => o.id === managingOrgId) || null;
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "clamp(14px,3.6vw,22px) clamp(12px,3.4vw,16px)", display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <div>
-          <span style={{ fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>THH Events Console</span>
-          <h3 style={{ margin: "4px 0 0" }}>Platform admin — {admin.name}</h3>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 40,
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 14,
+          padding: "12px 20px",
+          background: "var(--color-accent-900)",
+          color: "var(--hh-paper)",
+        }}
+      >
+        <span
+          style={{
+            width: 34,
+            height: 34,
+            flex: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "var(--font-heading)",
+            fontSize: 15,
+            background: "var(--hh-paper-20)",
+          }}
+        >
+          T
+        </span>
+        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
+          <span style={{ fontFamily: "var(--font-heading)", fontSize: 18, letterSpacing: ".03em" }}>THH EVENTS CONSOLE</span>
+          <span style={{ fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", opacity: 0.6, marginTop: 4 }}>
+            Platform admin
+          </span>
         </div>
-        <Btn onClick={() => signOutUser()} style={{ marginLeft: "auto" }}>Sign out</Btn>
-      </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+          <span style={{ fontFamily: "var(--font-heading)", fontSize: 14 }}>{admin.name}</span>
+          <Btn onClick={() => signOutUser()} style={{ borderColor: "var(--hh-paper-30)", color: "var(--hh-paper)" }}>Sign out</Btn>
+        </div>
+      </header>
 
-      {orgsLoading && <p className="text-muted">Loading organizations…</p>}
-
-      <div>
-        <h4 style={{ margin: "0 0 10px" }}>Pending applications ({pending.length})</h4>
-        {pending.length === 0 && <p className="text-muted" style={{ fontSize: 12.5 }}>Nothing waiting on review.</p>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {pending.map((org) => (
-            <PendingOrgCard key={org.id} org={org} flash={flash} />
+      <div style={{ borderBottom: "1px solid var(--color-divider)", background: "var(--color-surface)" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 20px", display: "flex", gap: 6, overflowX: "auto" }}>
+          {TABS.map((t) => (
+            <button
+              key={t}
+              onClick={() => {
+                setTab(t);
+                setManagingOrgId(null);
+              }}
+              style={{
+                fontFamily: "var(--font-heading)",
+                fontSize: 13,
+                letterSpacing: ".04em",
+                padding: "13px 16px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                border: "none",
+                borderBottom: `2px solid ${tab === t && !managingOrgId ? "var(--color-accent-700)" : "transparent"}`,
+                background: "transparent",
+                color: tab === t && !managingOrgId ? "var(--color-accent-700)" : "var(--color-text)",
+                opacity: tab === t && !managingOrgId ? 1 : 0.65,
+              }}
+            >
+              {t}
+              {t === "Organizations" && pending.length > 0 && (
+                <span
+                  style={{
+                    marginLeft: 7,
+                    fontSize: 10,
+                    padding: "1px 6px",
+                    borderRadius: 999,
+                    background: "var(--hh-danger)",
+                    color: "var(--hh-danger-ink)",
+                  }}
+                >
+                  {pending.length}
+                </span>
+              )}
+            </button>
           ))}
         </div>
       </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 10px" }}>Approved ({approved.length})</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))", gap: 12 }}>
-          {approved.map((org) => (
-            <OrgCard key={org.id} org={org} flash={flash} />
-          ))}
+      <div style={{ flex: 1, background: "var(--color-bg)" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "clamp(16px,3.6vw,28px) clamp(14px,3.4vw,20px)" }}>
+          {orgsLoading && <p className="text-muted">Loading…</p>}
+
+          {managingOrg ? (
+            <OrgManagePanel org={managingOrg} onClose={() => setManagingOrgId(null)} />
+          ) : (
+            <>
+              {tab === "Overview" && (
+                <OverviewTab orgs={orgs} pending={pending} approved={approved} suspended={suspended} />
+              )}
+              {tab === "Organizations" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                  <div>
+                    <h4 style={{ margin: "0 0 10px" }}>Pending applications ({pending.length})</h4>
+                    {pending.length === 0 && <p className="text-muted" style={{ fontSize: 12.5 }}>Nothing waiting on review.</p>}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {pending.map((org) => (
+                        <PendingOrgCard key={org.id} org={org} flash={flash} />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 style={{ margin: "0 0 10px" }}>Approved ({approved.length})</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))", gap: 12 }}>
+                      {approved.map((org) => (
+                        <OrgCard key={org.id} org={org} flash={flash} onManage={() => setManagingOrgId(org.id)} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {suspended.length > 0 && (
+                    <div>
+                      <h4 style={{ margin: "0 0 10px" }}>Retired ({suspended.length})</h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))", gap: 12 }}>
+                        {suspended.map((org) => (
+                          <OrgCard key={org.id} org={org} flash={flash} onManage={() => setManagingOrgId(org.id)} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {rejected.length > 0 && (
+                    <div>
+                      <h4 style={{ margin: "0 0 10px" }}>Rejected ({rejected.length})</h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))", gap: 12 }}>
+                        {rejected.map((org) => (
+                          <OrgCard key={org.id} org={org} flash={flash} onManage={() => setManagingOrgId(org.id)} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {tab === "Events" && <EventsReportTab orgs={orgs} />}
+              {tab === "Vendors" && <VendorsReportTab orgs={orgs} />}
+            </>
+          )}
         </div>
       </div>
-
-      {suspended.length > 0 && (
-        <div>
-          <h4 style={{ margin: "0 0 10px" }}>Suspended ({suspended.length})</h4>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))", gap: 12 }}>
-            {suspended.map((org) => (
-              <OrgCard key={org.id} org={org} flash={flash} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {rejected.length > 0 && (
-        <div>
-          <h4 style={{ margin: "0 0 10px" }}>Rejected ({rejected.length})</h4>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))", gap: 12 }}>
-            {rejected.map((org) => (
-              <OrgCard key={org.id} org={org} flash={flash} />
-            ))}
-          </div>
-        </div>
-      )}
       <Toast text={toast} />
     </div>
+  );
+}
+
+function OverviewTab({
+  orgs,
+  pending,
+  approved,
+  suspended,
+}: {
+  orgs: Organization[];
+  pending: Organization[];
+  approved: Organization[];
+  suspended: Organization[];
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,170px),1fr))", gap: 12 }}>
+        <StatCard value={orgs.length} label="Registered organizations" />
+        <StatCard value={pending.length} label="Pending review" accent={pending.length > 0 ? "var(--hh-warn)" : undefined} />
+        <StatCard value={approved.length} label="Active organizations" />
+        <StatCard value={suspended.length} label="Retired" />
+      </div>
+
+      {pending.length > 0 && (
+        <Blueprint>
+          <h4 style={{ margin: "0 0 4px" }}>Awaiting your review</h4>
+          <p className="text-muted" style={{ fontSize: 11.5, margin: "0 0 12px" }}>Switch to the Organizations tab to approve or reject.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pending.slice(0, 5).map((o) => (
+              <div key={o.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--color-divider)" }}>
+                <span style={{ fontFamily: "var(--font-heading)", fontSize: 14 }}>{o.name}</span>
+                <span className="text-muted" style={{ fontSize: 11.5 }}>{o.requester.email}</span>
+              </div>
+            ))}
+          </div>
+        </Blueprint>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ value, label, accent }: { value: number; label: string; accent?: string }) {
+  return (
+    <Blueprint style={{ textAlign: "center", padding: "20px 12px" }}>
+      <div style={{ fontFamily: "var(--font-heading)", fontSize: 36, lineHeight: 1, color: accent || "var(--color-accent-700)" }}>{value}</div>
+      <div style={{ fontSize: 10.5, letterSpacing: ".14em", textTransform: "uppercase", marginTop: 6, opacity: 0.65 }}>{label}</div>
+    </Blueprint>
   );
 }
 
@@ -242,14 +393,14 @@ function PendingOrgCard({ org, flash }: { org: Organization; flash: (m: string) 
   );
 }
 
-function OrgCard({ org, flash }: { org: Organization; flash: (m: string) => void }) {
+function OrgCard({ org, flash, onManage }: { org: Organization; flash: (m: string) => void; onManage: () => void }) {
   const [busy, setBusy] = useState(false);
 
   async function setStatus(status: "approved" | "suspended") {
     setBusy(true);
     try {
       await updateDoc(doc(db, "organizations", org.id), { status });
-      flash(`${org.name} is now ${status}`);
+      flash(`${org.name} is now ${status === "approved" ? "active" : "retired"}`);
     } finally {
       setBusy(false);
     }
@@ -268,12 +419,13 @@ function OrgCard({ org, flash }: { org: Organization; flash: (m: string) => void
       <p className="text-muted" style={{ fontSize: 11.5, margin: "6px 0 8px" }}>
         <code>/{org.slug}/</code> · {org.adminEmail || "—"}
       </p>
-      <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <Btn variant="primary" onClick={onManage} style={{ fontSize: 12 }}>Manage</Btn>
         {org.status === "approved" && !org.isPlatformOwner && (
-          <Btn onClick={() => setStatus("suspended")} disabled={busy}>Suspend</Btn>
+          <Btn onClick={() => setStatus("suspended")} disabled={busy} style={{ fontSize: 12 }}>Retire</Btn>
         )}
         {org.status === "suspended" && (
-          <Btn variant="primary" onClick={() => setStatus("approved")} disabled={busy}>Reactivate</Btn>
+          <Btn onClick={() => setStatus("approved")} disabled={busy} style={{ fontSize: 12 }}>Reactivate</Btn>
         )}
       </div>
     </Blueprint>
