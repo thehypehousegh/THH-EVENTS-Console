@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collectionGroup, query, where, orderBy } from "firebase/firestore";
+import { collectionGroup, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useCollection } from "@/lib/hooks";
+import { useOrgCollection } from "@/lib/hooks";
 import { useAuth } from "@/lib/AuthProvider";
-import { onSnapshot } from "firebase/firestore";
+import { useOrg } from "@/lib/OrgProvider";
 import { Blueprint } from "@/components/ui";
 import type { HHEvent } from "@/lib/types";
 
@@ -16,10 +16,11 @@ function daysOut(dateISO: string | null): number | null {
   return Math.round(ms / 86400000);
 }
 
-export default function EventsPage() {
+export default function EventsSection() {
+  const { org, slug } = useOrg();
   const { person, hasPerm } = useAuth();
   const isAdmin = hasPerm("accounts");
-  const { data: allEvents, loading: allLoading } = useCollection<HHEvent>("events", orderBy("createdAt", "desc"));
+  const { data: allEvents, loading: allLoading } = useOrgCollection<HHEvent>("events", org?.id, orderBy("createdAt", "desc"));
   const [assignedEventIds, setAssignedEventIds] = useState<Set<string> | null>(null);
 
   useEffect(() => {
@@ -76,17 +77,17 @@ export default function EventsPage() {
                     </span>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
                       {hasPerm("advance") && (
-                        <Link href={`/control/?event=${ev.id}`} className="btn btn-primary" style={{ fontSize: 12 }}>
+                        <Link href={`/${slug}/control/?event=${ev.id}`} className="btn btn-primary" style={{ fontSize: 12 }}>
                           Control room
                         </Link>
                       )}
-                      <Link href={`/coordinator/?event=${ev.id}`} className="btn btn-secondary" style={{ fontSize: 12 }}>
+                      <Link href={`/${slug}/coordinator/?event=${ev.id}`} className="btn btn-secondary" style={{ fontSize: 12 }}>
                         Coordinator
                       </Link>
-                      <Link href={`/cue/?event=${ev.id}`} className="btn btn-secondary" style={{ fontSize: 12 }}>
+                      <Link href={`/${slug}/cue/?event=${ev.id}`} className="btn btn-secondary" style={{ fontSize: 12 }}>
                         MC / DJ
                       </Link>
-                      <Link href={`/vendors/?event=${ev.id}`} className="btn btn-secondary" style={{ fontSize: 12 }}>
+                      <Link href={`/${slug}/vendors/?event=${ev.id}`} className="btn btn-secondary" style={{ fontSize: 12 }}>
                         Vendors
                       </Link>
                     </div>
@@ -98,7 +99,7 @@ export default function EventsPage() {
         );
       })}
       {isAdmin && (
-        <Link href="/archive/" className="btn btn-secondary" style={{ fontSize: 12 }}>
+        <Link href={`/${slug}/archive/`} className="btn btn-secondary" style={{ fontSize: 12 }}>
           Open project record →
         </Link>
       )}

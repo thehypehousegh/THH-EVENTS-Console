@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { doc, setDoc, updateDoc, orderBy } from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut as secondarySignOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { orderBy } from "firebase/firestore";
 import { db, getSecondaryAuth, storage } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthProvider";
 import { useAppData } from "@/lib/AppDataProvider";
-import { useCollection, genId, genToken } from "@/lib/hooks";
-import { Blueprint, Btn, Chip, Divider, FieldLabel, Input, Toast } from "@/components/ui";
-import { PERMS, PRESETS, type PermissionId, type HHEvent } from "@/lib/types";
+import { useOrg } from "@/lib/OrgProvider";
+import { useCollection, useOrgCollection, genId, genToken } from "@/lib/hooks";
+import { Blueprint, Btn, Chip, Divider, Input, Toast } from "@/components/ui";
+import { OrgProfileEditor } from "@/components/OrgProfileEditor";
+import { PERMS, PRESETS, type PermissionId, type HHEvent, type OrgInquiry } from "@/lib/types";
 
 const ROLE_BASES = ["Main Coordinator", "Sub-Coordinator", "Volunteer", "MC", "DJ", "Usher", "Vendor liaison"];
 const PERM_GROUPS = ["Programme", "Checklist", "Issues", "Comms", "Vendors", "Admin"];
@@ -23,7 +26,8 @@ function useFlash() {
   return { toast, flash };
 }
 
-export default function AdminPage() {
+export default function AdminSection() {
+  const { org } = useOrg();
   const { hasPerm } = useAuth();
   const { toast, flash } = useFlash();
   const canManage = hasPerm("accounts");
@@ -47,6 +51,8 @@ export default function AdminPage() {
         gap: 16,
       }}
     >
+      {org && <OrgProfileEditor org={org} flash={flash} />}
+      {org && <InquiriesPanel orgId={org.id} flash={flash} />}
       <RolesPanel flash={flash} />
       <PeoplePanel flash={flash} />
       <EventBuilderPanel flash={flash} />
@@ -56,7 +62,50 @@ export default function AdminPage() {
   );
 }
 
+function InquiriesPanel({ orgId, flash }: { orgId: string; flash: (m: string) => void }) {
+  const { data: inquiries, loading } = useOrgCollection<OrgInquiry>("orgInquiries", orgId, orderBy("createdAt", "desc"));
+  const newCount = inquiries.filter((i) => i.status === "new").length;
+
+  async function markHandled(id: string) {
+    await updateDoc(doc(db, "orgInquiries", id), { status: "handled" });
+    flash("Marked as handled");
+  }
+
+  return (
+    <Blueprint style={{ gridColumn: "1/-1" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 9, flexWrap: "wrap" }}>
+        <h4 style={{ margin: "0 0 2px" }}>Enquiries from the public page</h4>
+        {newCount > 0 && <span className="tag" style={{ background: "var(--hh-warn)", color: "var(--hh-warn-ink)" }}>{newCount} new</span>}
+      </div>
+      <p className="text-muted" style={{ fontSize: 11, margin: "0 0 13px" }}>
+        Messages sent through the &quot;Let&apos;s connect&quot; form on the public page.
+      </p>
+      {loading && <p className="text-muted" style={{ fontSize: 12 }}>Loading…</p>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+        {inquiries.map((i) => (
+          <div key={i.id} style={{ padding: 12, border: "1px solid var(--color-divider)", background: i.status === "new" ? "var(--color-accent-100)" : "transparent" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--font-heading)", fontSize: 14 }}>{i.name}</span>
+              <span className="tag tag-accent">{i.eventType}</span>
+              {i.company && <span className="text-muted" style={{ fontSize: 11.5 }}>{i.company}</span>}
+              {i.status === "new" && (
+                <Btn onClick={() => markHandled(i.id)} style={{ marginLeft: "auto", fontSize: 11, padding: "7px 10px", minHeight: 32 }}>
+                  Mark handled
+                </Btn>
+              )}
+            </div>
+            <p style={{ margin: "7px 0 0", fontSize: 13 }}>{i.message}</p>
+            <a href={`mailto:${i.email}`} className="text-muted" style={{ fontSize: 11.5, display: "block", marginTop: 6 }}>{i.email}</a>
+          </div>
+        ))}
+        {!loading && inquiries.length === 0 && <p className="text-muted" style={{ fontSize: 12 }}>No enquiries yet.</p>}
+      </div>
+    </Blueprint>
+  );
+}
+
 function RolesPanel({ flash }: { flash: (m: string) => void }) {
+  const { org } = useOrg();
   const { roles } = useAppData();
   const [editRole, setEditRole] = useState<string | null>(null);
   const activeRoleId = editRole || roles[0]?.id || null;
@@ -73,10 +122,11 @@ function RolesPanel({ flash }: { flash: (m: string) => void }) {
   }
 
   async function createRole() {
+    if (!org) return;
     const name = newRoleName.trim();
     if (!name) return flash("Give the role a name first");
     const id = genId("rd");
-    await setDoc(doc(db, "roles", id), { name, base: newRoleBase, perms: PRESETS[newRoleBase] || [] });
+    await setDoc(doc(db, "roles", id), { orgId: org.id, name, base: newRoleBase, perms: PRESETS[newRoleBase] || [] });
     setNewRoleName("");
     setEditRole(id);
     flash(`"${name}" created with ${newRoleBase} access — adjust the boxes below`);
@@ -175,8 +225,9 @@ function RolesPanel({ flash }: { flash: (m: string) => void }) {
 }
 
 function PeoplePanel({ flash }: { flash: (m: string) => void }) {
+  const { org } = useOrg();
   const { people, roles, peopleLoading } = useAppData();
-  const { data: events } = useCollection<HHEvent>("events", orderBy("createdAt", "desc"));
+  const { data: events } = useOrgCollection<HHEvent>("events", org?.id, orderBy("createdAt", "desc"));
   const [assignPerson, setAssignPerson] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
@@ -188,6 +239,7 @@ function PeoplePanel({ flash }: { flash: (m: string) => void }) {
   const active = people.find((p) => p.id === assignPerson) || null;
 
   async function addPerson() {
+    if (!org) return;
     if (!name.trim() || !contact.trim() || !email.trim()) return flash("A person needs a name, phone and email");
     const pwd = Math.random().toString(36).slice(2, 10);
     setBusy(true);
@@ -202,6 +254,7 @@ function PeoplePanel({ flash }: { flash: (m: string) => void }) {
         photoUrl = await getDownloadURL(r);
       }
       await setDoc(doc(db, "people", uid), {
+        orgId: org.id,
         name: name.trim(),
         contact: contact.trim(),
         email: email.trim(),
@@ -387,7 +440,8 @@ function PeoplePanel({ flash }: { flash: (m: string) => void }) {
 const TASK_PHASES = ["Setup", "Live", "Teardown"] as const;
 
 function EventBuilderPanel({ flash }: { flash: (m: string) => void }) {
-  const { data: events } = useCollection<HHEvent>("events", orderBy("createdAt", "desc"));
+  const { org } = useOrg();
+  const { data: events } = useOrgCollection<HHEvent>("events", org?.id, orderBy("createdAt", "desc"));
   const [eventId, setEventId] = useState<string | null>(null);
   const activeEventId = eventId || events[0]?.id || null;
 
@@ -525,7 +579,8 @@ function EventBuilderPanel({ flash }: { flash: (m: string) => void }) {
 }
 
 function ClientLinkPanel({ flash }: { flash: (m: string) => void }) {
-  const { data: events } = useCollection<HHEvent>("events", orderBy("createdAt", "desc"));
+  const { org, slug } = useOrg();
+  const { data: events } = useOrgCollection<HHEvent>("events", org?.id, orderBy("createdAt", "desc"));
   const [eventId, setEventId] = useState<string | null>(null);
   const activeEventId = eventId || events[0]?.id || null;
   const active = events.find((e) => e.id === activeEventId);
@@ -533,7 +588,7 @@ function ClientLinkPanel({ flash }: { flash: (m: string) => void }) {
 
   if (!active) return null;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const link = `${origin}/client/?e=${active.id}&t=${active.clientToken}`;
+  const link = `${origin}/${slug}/client/?e=${active.id}&t=${active.clientToken}`;
 
   async function rotate() {
     if (!active) return;

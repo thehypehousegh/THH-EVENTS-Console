@@ -2,16 +2,16 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Image from "next/image";
 import { addDoc, collection, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCollection, useDocument } from "@/lib/hooks";
+import { useOrg } from "@/lib/OrgProvider";
 import { Blueprint, Btn, Chip, Divider, Input } from "@/components/ui";
 import type { HHEvent, ScheduleItem, ClientComment } from "@/lib/types";
 
 const TOPICS = ["The programme", "Music", "Food", "Guests", "Something else"];
 
-export default function ClientPortalPage() {
+export default function ClientPortalSection() {
   return (
     <Suspense fallback={null}>
       <ClientPortalInner />
@@ -46,6 +46,7 @@ function Centered({ text }: { text: string }) {
 }
 
 function ClientPortalBody({ event }: { event: HHEvent }) {
+  const { org } = useOrg();
   const { data: schedule } = useCollection<ScheduleItem>(`events/${event.id}/scheduleItems`, orderBy("order"));
   const { data: updates } = useCollection<{ who: string; text: string; createdAt: number }>(
     `events/${event.id}/clientUpdates`,
@@ -90,13 +91,18 @@ function ClientPortalBody({ event }: { event: HHEvent }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,300px),1fr))", gap: 20, alignItems: "start" }}>
         <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 18 }}>
           <div>
-            <Image src="/hype-house-logo.png" alt="The Hype House" width={54} height={54} style={{ objectFit: "contain", marginBottom: 14 }} />
+            {org?.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={org.logoUrl} alt={org.name} width={54} height={54} style={{ objectFit: "contain", marginBottom: 14 }} />
+            ) : (
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: 20, marginBottom: 14 }}>{org?.name}</div>
+            )}
             <span style={{ fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>
               {event.type} · {event.date}
             </span>
             <h3 style={{ margin: "7px 0 6px", fontSize: "clamp(23px,5.5vw,29px)" }}>{event.name}</h3>
             <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              {event.location} · {event.guests} guests · coordinated by The Hype House
+              {event.location} · {event.guests} guests · coordinated by {org?.name}
             </p>
           </div>
 

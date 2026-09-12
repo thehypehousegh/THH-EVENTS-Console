@@ -1,27 +1,47 @@
 rules_version = '2';
 
-// Passport photos and event cover images. Mirrors the `accounts` /
-// `client` permission checks in firestore.rules, via the cross-service
-// firestore.get() call Storage rules support.
+// Passport photos, event cover images, and org branding (logo/gallery).
+// Mirrors the `accounts` / `client` permission checks in firestore.rules,
+// via the cross-service firestore.get() call Storage rules support.
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // Cheap, never throws on a missing doc — check this FIRST in any
+    // condition that also touches myPerms(), since a platform admin has
+    // no people/ doc and get().data on a missing doc errors.
+    function isPlatformAdmin() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/platformAdmins/$(request.auth.uid));
+    }
+
+    function myPerson() {
+      return firestore.get(/databases/(default)/documents/people/$(request.auth.uid)).data;
+    }
+
     function myPerms() {
-      let person = firestore.get(/databases/(default)/documents/people/$(request.auth.uid)).data;
+      let person = myPerson();
       let role = firestore.get(/databases/(default)/documents/roles/$(person.roleId)).data;
       return person.active == true ? role.perms : [];
     }
 
     match /people/{uid}/{fileName} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && ('accounts' in myPerms() || request.auth.uid == uid);
+      allow write: if request.auth != null && (isPlatformAdmin() || 'accounts' in myPerms() || request.auth.uid == uid);
     }
 
     match /events/{eventId}/{fileName} {
       // Cover images are shown on the public client portal, so they're
       // world-readable — same tradeoff as the event doc itself.
       allow read: if true;
-      allow write: if request.auth != null && ('client' in myPerms() || 'accounts' in myPerms());
+      allow write: if request.auth != null && (isPlatformAdmin() || 'client' in myPerms() || 'accounts' in myPerms());
+    }
+
+    // Org branding — logo and "executed events" gallery images shown on
+    // the org's public landing page.
+    match /organizations/{orgId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && (isPlatformAdmin() || (myPerson().orgId == orgId && 'accounts' in myPerms()));
     }
   }
 }

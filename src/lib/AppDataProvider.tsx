@@ -1,9 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { collection, orderBy, query } from "firebase/firestore";
-import { db } from "./firebase";
-import { useCollection } from "./hooks";
+import { useOrgCollection } from "./hooks";
 import type { Person, RoleDef } from "./types";
 
 interface AppDataCtx {
@@ -17,9 +15,12 @@ interface AppDataCtx {
 
 const Ctx = createContext<AppDataCtx | null>(null);
 
-export function AppDataProvider({ children }: { children: ReactNode }) {
-  const { data: people, loading: peopleLoading } = useCollection<Person>("people");
-  const { data: roles, loading: rolesLoading } = useCollection<RoleDef>("roles");
+/** People/roles for ONE organization — mount inside OrgProvider with that
+ *  org's id, scoped below AuthGate so it only ever runs for a signed-in
+ *  member of that same org. */
+export function AppDataProvider({ orgId, children }: { orgId: string; children: ReactNode }) {
+  const { data: people, loading: peopleLoading } = useOrgCollection<Person>("people", orgId);
+  const { data: roles, loading: rolesLoading } = useOrgCollection<RoleDef>("roles", orgId);
 
   function personName(id: string | null | undefined) {
     if (!id) return "—";
@@ -41,9 +42,4 @@ export function useAppData() {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("useAppData must be used within AppDataProvider");
   return ctx;
-}
-
-// re-exported for convenience where a raw ordered query is needed
-export function peopleQuery() {
-  return query(collection(db, "people"), orderBy("name"));
 }

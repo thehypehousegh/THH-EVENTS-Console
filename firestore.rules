@@ -1,131 +1,242 @@
 rules_version = '2';
 
-// Hype House Ops — Firestore security rules.
+// Hype House Events Console — Firestore security rules.
 //
-// Permission model: every signed-in person has a `people/{uid}` doc with a
-// `roleId` pointing at a `roles/{roleId}` doc that carries a `perms` array
-// (see src/lib/types.ts PERMS/PRESETS). A person whose `active` field is
-// false is "retired" — every rule below treats them as signed out even
-// though their Firebase Auth credentials still work, which is the exact
-// behaviour the product spec asked for ("credentials don't change, access
-// does"). The public client-report link is served by unauthenticated rules
-// gated on `clientTokenActive` — see clientTokens/ below.
+// Multi-tenant: the platform (owned/operated by The Hype House) hosts many
+// event-house organizations. Every operational document (people, roles,
+// vendors, events + their subcollections) carries an `orgId` and is only
+// readable/writable by an active, permissioned member of THAT org — cross-
+// org access is never granted by permission alone, orgId must also match.
+//
+// `platformAdmins/{uid}` is a separate identity space from `people/{uid}`:
+// a platform Super Admin (Hype House staff) is not a member of any single
+// org and reviews/approves org registrations from `organizations/`.
+//
+// Permission model inside an org: every signed-in member has a
+// `people/{uid}` doc with a `roleId` pointing at a `roles/{roleId}` doc
+// (in the same org) that carries a `perms` array (see src/lib/types.ts
+// PERMS/PRESETS). A person whose `active` field is false is "retired" —
+// every rule below treats them as signed out even though their Firebase
+// Auth credentials still work. The public client-report link is served by
+// unauthenticated rules gated on `clientTokenActive` — see events/ below.
 
-function isSignedIn() {
-  return request.auth != null;
-}
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-function myPerson() {
-  return get(/databases/$(database)/documents/people/$(request.auth.uid));
-}
-
-function isActivePerson() {
-  return isSignedIn() && myPerson().data.active == true;
-}
-
-function myRoleId() {
-  return myPerson().data.roleId;
-}
-
-function myRole() {
-  return get(/databases/$(database)/documents/roles/$(myRoleId()));
-}
-
-function hasPerm(perm) {
-  return isActivePerson() && myRoleId() != null && perm in myRole().data.perms;
-}
-
-function isSelf(uid) {
-  return isSignedIn() && request.auth.uid == uid;
-}
-
-match /databases/{database}/documents {
-
-  // ── People ──────────────────────────────────────────────────────
-  match /people/{personId} {
-    allow get: if isSelf(personId) || hasPerm('accounts');
-    allow list: if hasPerm('accounts');
-    // Created by the secondary-auth admin flow right after the Firebase
-    // Auth account is made; only someone with `accounts` may do it, and
-    // only for a doc id matching a real (just-created) auth uid.
-    allow create: if hasPerm('accounts');
-    allow update: if hasPerm('accounts') || (isSelf(personId) && request.resource.data.diff(resource.data).affectedKeys()
-                    .hasOnly(['photoUrl', 'contact']));
-    allow delete: if false;
-  }
-
-  // ── Roles ───────────────────────────────────────────────────────
-  match /roles/{roleId} {
-    allow get, list: if isActivePerson();
-    allow write: if hasPerm('accounts');
-  }
-
-  // ── Vendors (top-level; visibility filtered client-side per the
-  //    "Main sees all, others see own + shared" rule, but writes are
-  //    gated here) ──────────────────────────────────────────────────
-  match /vendors/{vendorId} {
-    allow read: if isActivePerson();
-    allow create: if hasPerm('vendorAdd');
-    allow update: if hasPerm('vendorAdd') || hasPerm('vendorShare');
-    allow delete: if hasPerm('accounts');
-  }
-
-  // ── Public client-report tokens ────────────────────────────────
-  // Doc id IS the unguessable shareable token. Reading it only ever
-  // hands back an eventId — the event itself still checks
-  // clientTokenActive before it opens up.
-  match /clientTokens/{token} {
-    allow get: if true;
-    allow list: if false;
-    allow write: if hasPerm('client');
-  }
-
-  // ── Events ──────────────────────────────────────────────────────
-  match /events/{eventId} {
-    allow get: if isActivePerson() || resource.data.clientTokenActive == true;
-    allow list: if isActivePerson();
-    allow create: if hasPerm('client') || hasPerm('accounts');
-    allow update: if isActivePerson(); // narrowed per-field below is impractical here; app UI gates actions by perm
-    allow delete: if false; // events are archived, never hard-deleted (vendor retention requirement)
-
-    match /scheduleItems/{itemId} {
-      allow get, list: if isActivePerson() || get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
-      allow write: if hasPerm('advance') || hasPerm('skipOwn') || hasPerm('approve');
+    function isSignedIn() {
+      return request.auth != null;
     }
-    match /tasks/{taskId} {
-      allow get, list: if isActivePerson();
-      allow write: if hasPerm('tickOwn') || hasPerm('tickAny') || hasPerm('assign');
+
+    // Cheap, never throws on a missing doc — always check this FIRST in any
+    // `||` chain that also touches myPerson()/hasPerm(), since a platform
+    // admin has no people/ doc and get().data on a missing doc errors.
+    function isPlatformAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
     }
-    match /escalations/{escId} {
-      allow get, list: if isActivePerson();
-      allow create: if hasPerm('raise');
-      allow update: if hasPerm('ack') || hasPerm('raise');
+
+    function myPerson() {
+      return get(/databases/$(database)/documents/people/$(request.auth.uid));
     }
-    match /feed/{msgId} {
-      allow get, list: if isActivePerson();
-      allow create: if isActivePerson();
+
+    function isActivePerson() {
+      return isSignedIn() && myPerson().data.active == true;
     }
-    match /changes/{changeId} {
-      allow get, list: if isActivePerson();
-      allow create: if hasPerm('skipOwn');
-      allow update: if hasPerm('approve');
+
+    function myOrgId() {
+      return myPerson().data.orgId;
     }
-    match /rollCall/{personId} {
-      allow get, list: if isActivePerson();
-      allow write: if isActivePerson();
+
+    function myRoleId() {
+      return myPerson().data.roleId;
     }
-    match /clientUpdates/{updateId} {
-      allow get, list: if isActivePerson() || get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
-      allow create: if hasPerm('client');
+
+    function myRole() {
+      return get(/databases/$(database)/documents/roles/$(myRoleId()));
     }
-    match /clientComments/{commentId} {
-      allow get, list: if isActivePerson() || get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
-      allow create: if get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
-      allow update: if isActivePerson();
+
+    function hasPerm(perm) {
+      return isActivePerson() && myRoleId() != null && perm in myRole().data.perms;
     }
-    match /assignments/{personId} {
-      allow get, list: if isActivePerson();
-      allow write: if hasPerm('accounts');
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function sameOrg(orgId) {
+      return isActivePerson() && myOrgId() == orgId;
+    }
+
+    // ── Organizations ───────────────────────────────────────────────
+    match /organizations/{orgId} {
+      // Approved orgs' profiles are public (their landing page); a
+      // platform admin can see any org (review queue); a member can
+      // always see their own org regardless of its status (get only —
+      // see the list rule below for why).
+      allow get: if resource.data.status == "approved"
+                  || isPlatformAdmin()
+                  || sameOrg(orgId);
+      // Firestore's list-rule evaluator only reliably exposes
+      // resource.data fields that are part of THIS query's own filters —
+      // checking a field the query doesn't filter on (confirmed via the
+      // emulator's rules-unit-testing harness and reproduced live) denies
+      // the whole request instead of narrowing results. So the public
+      // slug lookup (org landing pages resolve their org by querying on
+      // `slug`) must also filter on `status` client-side for this branch
+      // to see it — see OrgProvider.tsx. isPlatformAdmin() doesn't touch
+      // resource.data at all, so the review-queue listing (no status
+      // filter) is unaffected.
+      allow list: if isPlatformAdmin() || resource.data.status == "approved";
+      // Public self-service registration: anyone may file a pending
+      // application. It must land as "pending" and never self-declare
+      // platform ownership.
+      allow create: if request.resource.data.status == "pending"
+                     && request.resource.data.isPlatformOwner == false;
+      // Only a platform admin can move status/slug/isPlatformOwner/
+      // subscription; an org's own admin may edit their own branding
+      // and marketing content once approved.
+      allow update: if isPlatformAdmin()
+                     || (
+                          sameOrg(orgId)
+                          && hasPerm('accounts')
+                          && request.resource.data.status == resource.data.status
+                          && request.resource.data.slug == resource.data.slug
+                          && request.resource.data.isPlatformOwner == resource.data.isPlatformOwner
+                        );
+      allow delete: if false;
+    }
+
+    // ── Platform admins ─────────────────────────────────────────────
+    match /platformAdmins/{uid} {
+      allow get: if isSelf(uid) || isPlatformAdmin();
+      allow list: if isPlatformAdmin();
+      allow write: if isPlatformAdmin();
+    }
+
+    // ── People ──────────────────────────────────────────────────────
+    // Reads are open to any active member of the same org — every role's
+    // UI resolves names (controller, deputy, "entered by …") off this
+    // collection, not just accounts-perm holders. Writes stay admin-only.
+    match /people/{personId} {
+      allow get: if isPlatformAdmin()
+                  || isSelf(personId)
+                  || (isActivePerson() && resource.data.orgId == myOrgId());
+      allow list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId());
+      // Created by the secondary-auth admin flow right after the Firebase
+      // Auth account is made; only someone with `accounts` may do it, for
+      // their own org, or the platform admin (seeding a new org's admin).
+      allow create: if isPlatformAdmin() || (hasPerm('accounts') && request.resource.data.orgId == myOrgId());
+      allow update: if isPlatformAdmin()
+                     || (hasPerm('accounts') && resource.data.orgId == myOrgId() && request.resource.data.orgId == resource.data.orgId)
+                     || (isSelf(personId) && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['photoUrl', 'contact']));
+      allow delete: if false;
+    }
+
+    // ── Roles ───────────────────────────────────────────────────────
+    // A platform admin can see and edit permissions on any org's existing
+    // roles (for the platform dashboard's per-org management view), but
+    // never create one — new roles are seeded once at org approval and
+    // otherwise stay the org admin's own call.
+    match /roles/{roleId} {
+      allow get, list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId());
+      allow create: if isPlatformAdmin() || (hasPerm('accounts') && request.resource.data.orgId == myOrgId());
+      allow update, delete: if isPlatformAdmin() || (hasPerm('accounts') && resource.data.orgId == myOrgId());
+    }
+
+    // ── Vendors (top-level; visibility filtered client-side per the
+    //    "Main sees all, others see own + shared" rule, but writes are
+    //    gated here) — a platform admin can see every org's vendor book
+    //    for the cross-org reporting view. ─────────────────────────────
+    match /vendors/{vendorId} {
+      allow get, list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId());
+      allow create: if hasPerm('vendorAdd') && request.resource.data.orgId == myOrgId();
+      allow update: if isActivePerson() && resource.data.orgId == myOrgId() && (hasPerm('vendorAdd') || hasPerm('vendorShare'));
+      allow delete: if hasPerm('accounts') && resource.data.orgId == myOrgId();
+    }
+
+    // ── Public client-report tokens ────────────────────────────────
+    // Doc id IS the unguessable shareable token. Reading it only ever
+    // hands back an eventId — the event itself still checks
+    // clientTokenActive before it opens up.
+    match /clientTokens/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if hasPerm('client') && request.resource.data.orgId == myOrgId();
+    }
+
+    // ── Org contact/inquiry form submissions ───────────────────────
+    // Anyone can submit an inquiry from an org's public landing page —
+    // no sign-in, write-only for them (can't read other people's
+    // messages). Only that org's own client/accounts-perm holders, or a
+    // platform admin, can read the inbox.
+    match /orgInquiries/{inquiryId} {
+      allow get, list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId() && (hasPerm('client') || hasPerm('accounts')));
+      allow create: if request.resource.data.status == "new";
+      allow update: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId() && (hasPerm('client') || hasPerm('accounts')));
+      allow delete: if false;
+    }
+
+    // ── Events ──────────────────────────────────────────────────────
+    // A platform admin can see every org's events for the cross-org
+    // reporting view (counts by status, sorted by org) — read only, no
+    // platformAdmin branch on writes below.
+    match /events/{eventId} {
+      allow get: if isPlatformAdmin()
+                  || resource.data.clientTokenActive == true
+                  || (isActivePerson() && resource.data.orgId == myOrgId());
+      allow list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId());
+      allow create: if (hasPerm('client') || hasPerm('accounts')) && request.resource.data.orgId == myOrgId();
+      allow update: if isActivePerson() && resource.data.orgId == myOrgId(); // narrowed per-field below is impractical here; app UI gates actions by perm
+      allow delete: if false; // events are archived, never hard-deleted (vendor retention requirement)
+
+      match /scheduleItems/{itemId} {
+        allow get, list: if get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true
+                           || (isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId());
+        allow write: if isActivePerson()
+                      && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId()
+                      && (hasPerm('advance') || hasPerm('skipOwn') || hasPerm('approve'));
+      }
+      match /tasks/{taskId} {
+        allow get, list: if isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+        allow write: if isActivePerson()
+                      && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId()
+                      && (hasPerm('tickOwn') || hasPerm('tickAny') || hasPerm('assign'));
+      }
+      match /escalations/{escId} {
+        allow get, list: if isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+        allow create: if hasPerm('raise') && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+        allow update: if isActivePerson()
+                      && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId()
+                      && (hasPerm('ack') || hasPerm('raise'));
+      }
+      match /feed/{msgId} {
+        allow get, list: if isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+        allow create: if isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+      }
+      match /changes/{changeId} {
+        allow get, list: if isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+        allow create: if hasPerm('skipOwn') && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+        allow update: if hasPerm('approve') && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+      }
+      match /rollCall/{personId} {
+        allow get, list: if isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+        allow write: if isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+      }
+      match /clientUpdates/{updateId} {
+        allow get, list: if get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true
+                           || (isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId());
+        allow create: if hasPerm('client') && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+      }
+      match /clientComments/{commentId} {
+        allow get, list: if get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true
+                           || (isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId());
+        allow create: if get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
+        allow update: if isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+      }
+      match /assignments/{personId} {
+        allow get, list: if isActivePerson() && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+        allow write: if hasPerm('accounts') && get(/databases/$(database)/documents/events/$(eventId)).data.orgId == myOrgId();
+      }
     }
   }
 }

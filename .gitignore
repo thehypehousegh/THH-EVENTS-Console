@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# firebase
+/.firebase/
+
+# ad-hoc one-off verification scripts run against the live project
+/verify-*.mjs
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
