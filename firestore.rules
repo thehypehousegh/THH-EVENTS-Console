@@ -70,16 +70,22 @@ service cloud.firestore {
     match /organizations/{orgId} {
       // Approved orgs' profiles are public (their landing page); a
       // platform admin can see any org (review queue); a member can
-      // always see their own org regardless of its status.
+      // always see their own org regardless of its status (get only —
+      // see the list rule below for why).
       allow get: if resource.data.status == "approved"
                   || isPlatformAdmin()
                   || sameOrg(orgId);
-      // list is evaluated per matched document: a platform admin's review
-      // queue can enumerate everything, but a public/org-scoped slug
-      // lookup (org landing pages resolve by querying on `slug`) only
-      // ever sees approved orgs, plus a member's own org whatever its
-      // status (e.g. while suspended).
-      allow list: if isPlatformAdmin() || resource.data.status == "approved" || sameOrg(orgId);
+      // Firestore's list-rule evaluator only reliably exposes
+      // resource.data fields that are part of THIS query's own filters —
+      // checking a field the query doesn't filter on (confirmed via the
+      // emulator's rules-unit-testing harness and reproduced live) denies
+      // the whole request instead of narrowing results. So the public
+      // slug lookup (org landing pages resolve their org by querying on
+      // `slug`) must also filter on `status` client-side for this branch
+      // to see it — see OrgProvider.tsx. isPlatformAdmin() doesn't touch
+      // resource.data at all, so the review-queue listing (no status
+      // filter) is unaffected.
+      allow list: if isPlatformAdmin() || resource.data.status == "approved";
       // Public self-service registration: anyone may file a pending
       // application. It must land as "pending" and never self-declare
       // platform ownership.

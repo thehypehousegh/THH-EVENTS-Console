@@ -30,7 +30,17 @@ export function OrgProvider({ slug, children }: { slug: string; children: ReactN
     }
     setLoading(true);
     setNotFound(false);
-    const q = query(collection(db, "organizations"), where("slug", "==", slug), limit(1));
+    // Firestore's list-rule evaluator only reliably sees resource.data
+    // fields that are part of THIS query's own filters (see
+    // firestore.rules' organizations list rule) — filtering on `status`
+    // here, not just `slug`, is what lets the rule's
+    // resource.data.status == "approved" branch actually see it.
+    const q = query(
+      collection(db, "organizations"),
+      where("slug", "==", slug),
+      where("status", "==", "approved"),
+      limit(1)
+    );
     const unsub = onSnapshot(
       q,
       (snap) => {
