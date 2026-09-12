@@ -41,32 +41,38 @@ export function TopBar() {
         color: "var(--hh-paper)",
       }}
     >
-      {org?.logoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={org.logoUrl} alt={org.name} width={34} height={34} style={{ flex: "none", objectFit: "contain" }} />
-      ) : (
-        <span
-          style={{
-            flex: "none",
-            width: 34,
-            height: 34,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "var(--font-heading)",
-            fontSize: 15,
-            background: "var(--hh-paper-20)",
-          }}
-        >
-          {(org?.name || "?").slice(0, 1)}
-        </span>
-      )}
-      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
-        <span style={{ fontFamily: "var(--font-heading)", fontSize: 19, letterSpacing: ".03em" }}>{(org?.name || "").toUpperCase()}</span>
+      <Link
+        href={`/${slug}/`}
+        title="View public organization page"
+        style={{ display: "flex", alignItems: "center", gap: 14, textDecoration: "none", color: "inherit" }}
+      >
+        {org?.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={org.logoUrl} alt={org.name} width={34} height={34} style={{ flex: "none", objectFit: "contain" }} />
+        ) : (
+          <span
+            style={{
+              flex: "none",
+              width: 34,
+              height: 34,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "var(--font-heading)",
+              fontSize: 15,
+              background: "var(--hh-paper-20)",
+            }}
+          >
+            {(org?.name || "?").slice(0, 1)}
+          </span>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
+          <span style={{ fontFamily: "var(--font-heading)", fontSize: 19, letterSpacing: ".03em" }}>{(org?.name || "").toUpperCase()}</span>
         <span style={{ fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", opacity: 0.6, marginTop: 4 }}>
           Event Coordination Console
         </span>
-      </div>
+        </div>
+      </Link>
       <div style={{ width: 1, height: 28, background: "var(--hh-paper-30)", flex: "none" }} />
       <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.25, minWidth: 90, flex: "1 1 130px", overflow: "hidden" }}>
         <span style={{ fontSize: 9, letterSpacing: ".18em", textTransform: "uppercase", opacity: 0.55 }}>Signed in</span>
