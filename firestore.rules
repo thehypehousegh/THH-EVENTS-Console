@@ -164,6 +164,18 @@ service cloud.firestore {
       allow write: if hasPerm('client') && request.resource.data.orgId == myOrgId();
     }
 
+    // ── Org contact/inquiry form submissions ───────────────────────
+    // Anyone can submit an inquiry from an org's public landing page —
+    // no sign-in, write-only for them (can't read other people's
+    // messages). Only that org's own client/accounts-perm holders, or a
+    // platform admin, can read the inbox.
+    match /orgInquiries/{inquiryId} {
+      allow get, list: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId() && (hasPerm('client') || hasPerm('accounts')));
+      allow create: if request.resource.data.status == "new";
+      allow update: if isPlatformAdmin() || (isActivePerson() && resource.data.orgId == myOrgId() && (hasPerm('client') || hasPerm('accounts')));
+      allow delete: if false;
+    }
+
     // ── Events ──────────────────────────────────────────────────────
     // A platform admin can see every org's events for the cross-org
     // reporting view (counts by status, sorted by org) — read only, no

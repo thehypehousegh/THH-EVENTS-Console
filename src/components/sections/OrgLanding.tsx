@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { where } from "firebase/firestore";
+import { addDoc, collection } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useOrg } from "@/lib/OrgProvider";
-import { useOrgCollection } from "@/lib/hooks";
-import { Blueprint } from "@/components/ui";
-import type { HHEvent } from "@/lib/types";
+import { Blueprint, Btn, FieldLabel, Input } from "@/components/ui";
 
 export default function OrgLanding() {
   const { org, loading, notFound } = useOrg();
@@ -47,8 +46,8 @@ export default function OrgLanding() {
 
 function OrgLandingBody() {
   const { org, slug } = useOrg();
-  const { data: completedEvents } = useOrgCollection<HHEvent>("events", org?.id, where("status", "==", "completed"));
   if (!org) return null;
+  const sinceYear = new Date(org.createdAt).getFullYear();
 
   const nav = [
     { label: "Admin", href: `/${slug}/admin/` },
@@ -162,21 +161,6 @@ function OrgLandingBody() {
           </div>
         </div>
 
-        {completedEvents.length > 0 && (
-          <div
-            style={{
-              maxWidth: 700,
-              margin: "56px auto 0",
-              display: "flex",
-              justifyContent: "center",
-              gap: "clamp(24px,6vw,64px)",
-              flexWrap: "wrap",
-            }}
-          >
-            <Stat value={String(completedEvents.length)} label="Events delivered" />
-            {org.location && <Stat value={org.location} label="Based in" small />}
-          </div>
-        )}
       </section>
 
       {/* ── About ───────────────────────────────────────────── */}
@@ -186,6 +170,24 @@ function OrgLandingBody() {
           <p style={{ fontSize: "clamp(17px,2.6vw,22px)", lineHeight: 1.5, margin: "12px 0 0" }}>
             {org.about || `${org.name} plans and runs events end to end — from the first run sheet to the last thank-you, coordinated live by a team that never loses the thread.`}
           </p>
+        </div>
+      </section>
+
+      {/* ── Presence ────────────────────────────────────────── */}
+      <section style={{ padding: "clamp(32px,6vw,56px) clamp(16px,4vw,40px)", background: "var(--color-accent-900)", color: "var(--hh-paper)" }}>
+        <div
+          style={{
+            maxWidth: 900,
+            margin: "0 auto",
+            display: "flex",
+            justifyContent: "center",
+            gap: "clamp(28px,7vw,72px)",
+            flexWrap: "wrap",
+          }}
+        >
+          {org.location && <PresenceStat value={org.location} label="Based in" />}
+          <PresenceStat value={String(sinceYear)} label="Coordinating since" />
+          <PresenceStat value="Live" label="Run sheet & checklists" />
         </div>
       </section>
 
@@ -214,7 +216,8 @@ function OrgLandingBody() {
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <h4 style={{ margin: "0 0 5px" }}>{s.title}</h4>
-                  <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{s.description}</p>
+                  <p className="text-muted" style={{ fontSize: 13, margin: "0 0 10px" }}>{s.description}</p>
+                  <a href="#contact" style={{ fontFamily: "var(--font-heading)", fontSize: 11.5, letterSpacing: ".05em" }}>Enquire →</a>
                 </Blueprint>
               ))}
             </div>
@@ -249,6 +252,18 @@ function OrgLandingBody() {
           </div>
         </section>
       )}
+
+      {/* ── Contact / inquiry form ──────────────────────────── */}
+      <section id="contact" style={{ padding: "clamp(48px,8vw,88px) clamp(16px,4vw,40px)" }}>
+        <div style={{ maxWidth: 640, margin: "0 auto" }}>
+          <Eyebrow center>Get in touch</Eyebrow>
+          <h2 style={{ textAlign: "center", margin: "10px 0 8px", fontSize: "clamp(24px,4vw,34px)" }}>Have an event in mind? Let&apos;s connect</h2>
+          <p className="text-muted" style={{ textAlign: "center", fontSize: 14, margin: "0 0 28px" }}>
+            Tell {org.name} a little about what you&apos;re planning — a coordinator will get back to you directly.
+          </p>
+          <ContactForm orgId={org.id} />
+        </div>
+      </section>
 
       {/* ── Footer ──────────────────────────────────────────── */}
       <footer style={{ padding: "clamp(36px,6vw,56px) clamp(16px,4vw,40px) 26px", background: "var(--color-accent-900)", color: "var(--hh-paper)" }}>
@@ -315,11 +330,11 @@ function OrgLandingBody() {
   );
 }
 
-function Stat({ value, label, small }: { value: string; label: string; small?: boolean }) {
+function PresenceStat({ value, label }: { value: string; label: string }) {
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ fontFamily: "var(--font-heading)", fontSize: small ? 20 : 36, lineHeight: 1, color: "var(--color-accent-700)" }}>{value}</div>
-      <div style={{ fontSize: 10.5, letterSpacing: ".14em", textTransform: "uppercase", marginTop: 4, opacity: 0.65 }}>{label}</div>
+      <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 10, letterSpacing: ".14em", textTransform: "uppercase", marginTop: 6, opacity: 0.6 }}>{label}</div>
     </div>
   );
 }
@@ -340,6 +355,107 @@ function FooterCol({ title, children }: { title: string; children: React.ReactNo
       <span style={{ fontFamily: "var(--font-heading)", fontSize: 10.5, letterSpacing: ".18em", textTransform: "uppercase", opacity: 0.55, marginBottom: 2 }}>{title}</span>
       {children}
     </div>
+  );
+}
+
+const EVENT_TYPE_OPTIONS = ["Wedding / Reception", "Naming ceremony", "Funeral rites", "Corporate", "Concert / Show", "Other"];
+
+function ContactForm({ orgId }: { orgId: string }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [company, setCompany] = useState("");
+  const [eventType, setEventType] = useState(EVENT_TYPE_OPTIONS[0]);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      setError("Name, email and a short message are required.");
+      return;
+    }
+    setError("");
+    setBusy(true);
+    try {
+      await addDoc(collection(db, "orgInquiries"), {
+        orgId,
+        name: name.trim(),
+        email: email.trim(),
+        company: company.trim(),
+        eventType,
+        message: message.trim(),
+        status: "new",
+        createdAt: Date.now(),
+      });
+      setSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send — try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (sent) {
+    return (
+      <Blueprint style={{ textAlign: "center", padding: 28 }}>
+        <h4 style={{ margin: "0 0 6px" }}>Message sent</h4>
+        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>Thanks — the team will be in touch shortly.</p>
+      </Blueprint>
+    );
+  }
+
+  return (
+    <Blueprint style={{ padding: "clamp(18px,4vw,28px)" }}>
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,200px),1fr))", gap: 9 }}>
+          <label>
+            <FieldLabel>Your name</FieldLabel>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+          </label>
+          <label>
+            <FieldLabel>Email</FieldLabel>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+          </label>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,200px),1fr))", gap: 9 }}>
+          <label>
+            <FieldLabel>Company / family name (optional)</FieldLabel>
+            <Input value={company} onChange={(e) => setCompany(e.target.value)} />
+          </label>
+          <div>
+            <FieldLabel>Event type</FieldLabel>
+            <select
+              value={eventType}
+              onChange={(e) => setEventType(e.target.value)}
+              className="input"
+              style={{ width: "100%" }}
+            >
+              {EVENT_TYPE_OPTIONS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <label>
+          <FieldLabel>Message</FieldLabel>
+          <textarea
+            className="input"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Tell us about the event — date, guests, location, anything else that helps"
+            style={{ width: "100%", minHeight: 100 }}
+          />
+        </label>
+        {error && (
+          <div style={{ padding: "10px 11px", background: "var(--hh-danger-tint)", color: "var(--hh-danger-tint-ink)", fontSize: 12.5 }}>{error}</div>
+        )}
+        <Btn variant="primary" type="submit" disabled={busy} style={{ minHeight: 48, fontSize: 15, marginTop: 4 }}>
+          {busy ? "Sending…" : "Send message"}
+        </Btn>
+      </form>
+    </Blueprint>
   );
 }
 

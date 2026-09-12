@@ -12,7 +12,7 @@ import { useOrg } from "@/lib/OrgProvider";
 import { useCollection, useOrgCollection, genId, genToken } from "@/lib/hooks";
 import { Blueprint, Btn, Chip, Divider, Input, Toast } from "@/components/ui";
 import { OrgProfileEditor } from "@/components/OrgProfileEditor";
-import { PERMS, PRESETS, type PermissionId, type HHEvent } from "@/lib/types";
+import { PERMS, PRESETS, type PermissionId, type HHEvent, type OrgInquiry } from "@/lib/types";
 
 const ROLE_BASES = ["Main Coordinator", "Sub-Coordinator", "Volunteer", "MC", "DJ", "Usher", "Vendor liaison"];
 const PERM_GROUPS = ["Programme", "Checklist", "Issues", "Comms", "Vendors", "Admin"];
@@ -52,12 +52,55 @@ export default function AdminSection() {
       }}
     >
       {org && <OrgProfileEditor org={org} flash={flash} />}
+      {org && <InquiriesPanel orgId={org.id} flash={flash} />}
       <RolesPanel flash={flash} />
       <PeoplePanel flash={flash} />
       <EventBuilderPanel flash={flash} />
       <ClientLinkPanel flash={flash} />
       <Toast text={toast} />
     </div>
+  );
+}
+
+function InquiriesPanel({ orgId, flash }: { orgId: string; flash: (m: string) => void }) {
+  const { data: inquiries, loading } = useOrgCollection<OrgInquiry>("orgInquiries", orgId, orderBy("createdAt", "desc"));
+  const newCount = inquiries.filter((i) => i.status === "new").length;
+
+  async function markHandled(id: string) {
+    await updateDoc(doc(db, "orgInquiries", id), { status: "handled" });
+    flash("Marked as handled");
+  }
+
+  return (
+    <Blueprint style={{ gridColumn: "1/-1" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 9, flexWrap: "wrap" }}>
+        <h4 style={{ margin: "0 0 2px" }}>Enquiries from the public page</h4>
+        {newCount > 0 && <span className="tag" style={{ background: "var(--hh-warn)", color: "var(--hh-warn-ink)" }}>{newCount} new</span>}
+      </div>
+      <p className="text-muted" style={{ fontSize: 11, margin: "0 0 13px" }}>
+        Messages sent through the &quot;Let&apos;s connect&quot; form on the public page.
+      </p>
+      {loading && <p className="text-muted" style={{ fontSize: 12 }}>Loading…</p>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+        {inquiries.map((i) => (
+          <div key={i.id} style={{ padding: 12, border: "1px solid var(--color-divider)", background: i.status === "new" ? "var(--color-accent-100)" : "transparent" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--font-heading)", fontSize: 14 }}>{i.name}</span>
+              <span className="tag tag-accent">{i.eventType}</span>
+              {i.company && <span className="text-muted" style={{ fontSize: 11.5 }}>{i.company}</span>}
+              {i.status === "new" && (
+                <Btn onClick={() => markHandled(i.id)} style={{ marginLeft: "auto", fontSize: 11, padding: "7px 10px", minHeight: 32 }}>
+                  Mark handled
+                </Btn>
+              )}
+            </div>
+            <p style={{ margin: "7px 0 0", fontSize: 13 }}>{i.message}</p>
+            <a href={`mailto:${i.email}`} className="text-muted" style={{ fontSize: 11.5, display: "block", marginTop: 6 }}>{i.email}</a>
+          </div>
+        ))}
+        {!loading && inquiries.length === 0 && <p className="text-muted" style={{ fontSize: 12 }}>No enquiries yet.</p>}
+      </div>
+    </Blueprint>
   );
 }
 

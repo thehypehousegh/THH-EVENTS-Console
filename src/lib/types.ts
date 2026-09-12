@@ -116,6 +116,20 @@ export interface PlatformAdmin {
   createdAt: number;
 }
 
+export type InquiryStatus = "new" | "handled";
+
+export interface OrgInquiry {
+  id: string;
+  orgId: string;
+  name: string;
+  email: string;
+  company: string;
+  eventType: string;
+  message: string;
+  status: InquiryStatus;
+  createdAt: number;
+}
+
 export type PermissionId =
   | "seeRun"
   | "advance"
