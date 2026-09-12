@@ -83,10 +83,14 @@ function InternalApp({ section }: { section: AppSection }) {
 }
 
 function NotFound() {
+  const debugPathname = typeof window !== "undefined" ? window.location.pathname : "";
   return (
     <div style={{ maxWidth: 480, margin: "80px auto", padding: 20, textAlign: "center" }}>
       <h3>Page not found</h3>
       <p className="text-muted" style={{ fontSize: 13 }}>Check the address and try again.</p>
+      <p className="text-muted" style={{ fontSize: 11, marginTop: 20 }}>
+        debug: usePathname=&quot;{usePathname()}&quot; · window.location.pathname=&quot;{debugPathname}&quot;
+      </p>
     </div>
   );
 }
