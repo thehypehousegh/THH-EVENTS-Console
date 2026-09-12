@@ -11,121 +11,123 @@ rules_version = '2';
 // does"). The public client-report link is served by unauthenticated rules
 // gated on `clientTokenActive` — see clientTokens/ below.
 
-function isSignedIn() {
-  return request.auth != null;
-}
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-function myPerson() {
-  return get(/databases/$(database)/documents/people/$(request.auth.uid));
-}
-
-function isActivePerson() {
-  return isSignedIn() && myPerson().data.active == true;
-}
-
-function myRoleId() {
-  return myPerson().data.roleId;
-}
-
-function myRole() {
-  return get(/databases/$(database)/documents/roles/$(myRoleId()));
-}
-
-function hasPerm(perm) {
-  return isActivePerson() && myRoleId() != null && perm in myRole().data.perms;
-}
-
-function isSelf(uid) {
-  return isSignedIn() && request.auth.uid == uid;
-}
-
-match /databases/{database}/documents {
-
-  // ── People ──────────────────────────────────────────────────────
-  match /people/{personId} {
-    allow get: if isSelf(personId) || hasPerm('accounts');
-    allow list: if hasPerm('accounts');
-    // Created by the secondary-auth admin flow right after the Firebase
-    // Auth account is made; only someone with `accounts` may do it, and
-    // only for a doc id matching a real (just-created) auth uid.
-    allow create: if hasPerm('accounts');
-    allow update: if hasPerm('accounts') || (isSelf(personId) && request.resource.data.diff(resource.data).affectedKeys()
-                    .hasOnly(['photoUrl', 'contact']));
-    allow delete: if false;
-  }
-
-  // ── Roles ───────────────────────────────────────────────────────
-  match /roles/{roleId} {
-    allow get, list: if isActivePerson();
-    allow write: if hasPerm('accounts');
-  }
-
-  // ── Vendors (top-level; visibility filtered client-side per the
-  //    "Main sees all, others see own + shared" rule, but writes are
-  //    gated here) ──────────────────────────────────────────────────
-  match /vendors/{vendorId} {
-    allow read: if isActivePerson();
-    allow create: if hasPerm('vendorAdd');
-    allow update: if hasPerm('vendorAdd') || hasPerm('vendorShare');
-    allow delete: if hasPerm('accounts');
-  }
-
-  // ── Public client-report tokens ────────────────────────────────
-  // Doc id IS the unguessable shareable token. Reading it only ever
-  // hands back an eventId — the event itself still checks
-  // clientTokenActive before it opens up.
-  match /clientTokens/{token} {
-    allow get: if true;
-    allow list: if false;
-    allow write: if hasPerm('client');
-  }
-
-  // ── Events ──────────────────────────────────────────────────────
-  match /events/{eventId} {
-    allow get: if isActivePerson() || resource.data.clientTokenActive == true;
-    allow list: if isActivePerson();
-    allow create: if hasPerm('client') || hasPerm('accounts');
-    allow update: if isActivePerson(); // narrowed per-field below is impractical here; app UI gates actions by perm
-    allow delete: if false; // events are archived, never hard-deleted (vendor retention requirement)
-
-    match /scheduleItems/{itemId} {
-      allow get, list: if isActivePerson() || get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
-      allow write: if hasPerm('advance') || hasPerm('skipOwn') || hasPerm('approve');
+    function isSignedIn() {
+      return request.auth != null;
     }
-    match /tasks/{taskId} {
-      allow get, list: if isActivePerson();
-      allow write: if hasPerm('tickOwn') || hasPerm('tickAny') || hasPerm('assign');
+
+    function myPerson() {
+      return get(/databases/$(database)/documents/people/$(request.auth.uid));
     }
-    match /escalations/{escId} {
-      allow get, list: if isActivePerson();
-      allow create: if hasPerm('raise');
-      allow update: if hasPerm('ack') || hasPerm('raise');
+
+    function isActivePerson() {
+      return isSignedIn() && myPerson().data.active == true;
     }
-    match /feed/{msgId} {
-      allow get, list: if isActivePerson();
-      allow create: if isActivePerson();
+
+    function myRoleId() {
+      return myPerson().data.roleId;
     }
-    match /changes/{changeId} {
-      allow get, list: if isActivePerson();
-      allow create: if hasPerm('skipOwn');
-      allow update: if hasPerm('approve');
+
+    function myRole() {
+      return get(/databases/$(database)/documents/roles/$(myRoleId()));
     }
-    match /rollCall/{personId} {
-      allow get, list: if isActivePerson();
-      allow write: if isActivePerson();
+
+    function hasPerm(perm) {
+      return isActivePerson() && myRoleId() != null && perm in myRole().data.perms;
     }
-    match /clientUpdates/{updateId} {
-      allow get, list: if isActivePerson() || get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
-      allow create: if hasPerm('client');
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
     }
-    match /clientComments/{commentId} {
-      allow get, list: if isActivePerson() || get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
-      allow create: if get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
-      allow update: if isActivePerson();
+
+    // ── People ──────────────────────────────────────────────────────
+    match /people/{personId} {
+      allow get: if isSelf(personId) || hasPerm('accounts');
+      allow list: if hasPerm('accounts');
+      // Created by the secondary-auth admin flow right after the Firebase
+      // Auth account is made; only someone with `accounts` may do it, and
+      // only for a doc id matching a real (just-created) auth uid.
+      allow create: if hasPerm('accounts');
+      allow update: if hasPerm('accounts') || (isSelf(personId) && request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['photoUrl', 'contact']));
+      allow delete: if false;
     }
-    match /assignments/{personId} {
+
+    // ── Roles ───────────────────────────────────────────────────────
+    match /roles/{roleId} {
       allow get, list: if isActivePerson();
       allow write: if hasPerm('accounts');
+    }
+
+    // ── Vendors (top-level; visibility filtered client-side per the
+    //    "Main sees all, others see own + shared" rule, but writes are
+    //    gated here) ──────────────────────────────────────────────────
+    match /vendors/{vendorId} {
+      allow read: if isActivePerson();
+      allow create: if hasPerm('vendorAdd');
+      allow update: if hasPerm('vendorAdd') || hasPerm('vendorShare');
+      allow delete: if hasPerm('accounts');
+    }
+
+    // ── Public client-report tokens ────────────────────────────────
+    // Doc id IS the unguessable shareable token. Reading it only ever
+    // hands back an eventId — the event itself still checks
+    // clientTokenActive before it opens up.
+    match /clientTokens/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if hasPerm('client');
+    }
+
+    // ── Events ──────────────────────────────────────────────────────
+    match /events/{eventId} {
+      allow get: if isActivePerson() || resource.data.clientTokenActive == true;
+      allow list: if isActivePerson();
+      allow create: if hasPerm('client') || hasPerm('accounts');
+      allow update: if isActivePerson(); // narrowed per-field below is impractical here; app UI gates actions by perm
+      allow delete: if false; // events are archived, never hard-deleted (vendor retention requirement)
+
+      match /scheduleItems/{itemId} {
+        allow get, list: if isActivePerson() || get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
+        allow write: if hasPerm('advance') || hasPerm('skipOwn') || hasPerm('approve');
+      }
+      match /tasks/{taskId} {
+        allow get, list: if isActivePerson();
+        allow write: if hasPerm('tickOwn') || hasPerm('tickAny') || hasPerm('assign');
+      }
+      match /escalations/{escId} {
+        allow get, list: if isActivePerson();
+        allow create: if hasPerm('raise');
+        allow update: if hasPerm('ack') || hasPerm('raise');
+      }
+      match /feed/{msgId} {
+        allow get, list: if isActivePerson();
+        allow create: if isActivePerson();
+      }
+      match /changes/{changeId} {
+        allow get, list: if isActivePerson();
+        allow create: if hasPerm('skipOwn');
+        allow update: if hasPerm('approve');
+      }
+      match /rollCall/{personId} {
+        allow get, list: if isActivePerson();
+        allow write: if isActivePerson();
+      }
+      match /clientUpdates/{updateId} {
+        allow get, list: if isActivePerson() || get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
+        allow create: if hasPerm('client');
+      }
+      match /clientComments/{commentId} {
+        allow get, list: if isActivePerson() || get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
+        allow create: if get(/databases/$(database)/documents/events/$(eventId)).data.clientTokenActive == true;
+        allow update: if isActivePerson();
+      }
+      match /assignments/{personId} {
+        allow get, list: if isActivePerson();
+        allow write: if hasPerm('accounts');
+      }
     }
   }
 }
